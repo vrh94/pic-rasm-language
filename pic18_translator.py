@@ -11,287 +11,41 @@ Supports:
   - PIC16 enhanced mid-range additions (16 instructions, PIC16F1xxx)
   - English and Slovenian readable names (can be mixed)
 
+Instruction definitions are loaded from external JSON files:
+  - pic18_instructions.json   (PIC18 EN + SI)
+  - pic16_instructions.json   (PIC16 EN + SI)
+
 Usage:
     python pic18_translator.py input.rasm [-o output.asm]
 
 If no output file is specified, the result is printed to stdout.
 """
 
+import json
 import re
 import sys
 import argparse
+from pathlib import Path
 
 # =============================================================================
-# COMPLETE PIC18 INSTRUCTION SET — readable name → standard mnemonic
+# Load instruction maps from JSON files
 # =============================================================================
-# The mapping is   readable_name : standard_mnemonic
-# Operands are passed through unchanged.
-#
-# Sources:
-#   Microchip PIC18F "K" / "Q" family instruction set reference (DS39500)
-#   PIC18 Extended Instruction Set (XINST)
+_SCRIPT_DIR = Path(__file__).resolve().parent
 
-INSTRUCTION_MAP: dict[str, str] = {
+def _load_json(filename: str) -> dict:
+    """Load an instruction JSON file from the same directory as this script."""
+    path = _SCRIPT_DIR / filename
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
 
-    # ── Byte-oriented file register operations ──────────────────────────
-    "add_w_to_f":                       "ADDWF",    # Add W and f
-    "add_w_to_f_with_carry":            "ADDWFC",   # Add W and carry bit to f
-    "and_w_with_f":                     "ANDWF",    # AND W with f
-    "clear_f":                          "CLRF",     # Clear f
-    "complement_f":                     "COMF",     # Complement f
-    "compare_f_skip_if_equal":          "CPFSEQ",   # Compare f with W, skip =
-    "compare_f_skip_if_greater":        "CPFSGT",   # Compare f with W, skip >
-    "compare_f_skip_if_less":           "CPFSLT",   # Compare f with W, skip <
-    "decrement_f":                      "DECF",     # Decrement f
-    "decrement_f_skip_if_zero":         "DECFSZ",   # Decrement f, skip if 0
-    "decrement_f_skip_if_not_zero":     "DCFSNZ",   # Decrement f, skip if ≠0
-    "increment_f":                      "INCF",     # Increment f
-    "increment_f_skip_if_zero":         "INCFSZ",   # Increment f, skip if 0
-    "increment_f_skip_if_not_zero":     "INFSNZ",   # Increment f, skip if ≠0
-    "or_w_with_f":                      "IORWF",    # Inclusive OR W with f
-    "move_f":                           "MOVF",     # Move f  (also updates STATUS)
-    "move_f_to_f":                      "MOVFF",    # Move f(source) to f(dest)
-    "move_w_to_f":                      "MOVWF",    # Move W to f
-    "multiply_w_with_f":               "MULWF",    # Multiply W with f
-    "negate_f":                         "NEGF",     # Negate f (two's complement)
-    "rotate_left_f_through_carry":      "RLCF",     # Rotate left through carry
-    "rotate_left_f_no_carry":           "RLNCF",    # Rotate left (no carry)
-    "rotate_right_f_through_carry":     "RRCF",     # Rotate right through carry
-    "rotate_right_f_no_carry":          "RRNCF",    # Rotate right (no carry)
-    "set_f":                            "SETF",     # Set f (all bits = 1)
-    "subtract_f_from_w_with_borrow":    "SUBFWB",   # W − f − borrow → dest
-    "subtract_w_from_f":               "SUBWF",    # f − W → dest
-    "subtract_w_from_f_with_borrow":    "SUBWFB",   # f − W − borrow → dest
-    "swap_nibbles_f":                   "SWAPF",    # Swap nibbles in f
-    "test_f_skip_if_zero":              "TSTFSZ",   # Test f, skip if zero
-    "xor_w_with_f":                     "XORWF",    # Exclusive OR W with f
+_pic18_data = _load_json("pic18_instructions.json")
+_pic16_data = _load_json("pic16_instructions.json")
 
-    # ── Bit-oriented file register operations ───────────────────────────
-    "bit_clear_f":                      "BCF",      # Bit clear f
-    "bit_set_f":                        "BSF",      # Bit set f
-    "bit_test_f_skip_if_clear":         "BTFSC",    # Bit test, skip if clear
-    "bit_test_f_skip_if_set":           "BTFSS",    # Bit test, skip if set
-    "bit_toggle_f":                     "BTG",      # Bit toggle f
-
-    # ── Literal operations ──────────────────────────────────────────────
-    "add_literal_to_w":                 "ADDLW",    # Add literal and W
-    "and_literal_with_w":               "ANDLW",    # AND literal with W
-    "or_literal_with_w":                "IORLW",    # Inclusive OR literal with W
-    "move_literal_to_bsr":              "MOVLB",    # Move literal to BSR<3:0>
-    "move_literal_to_w":                "MOVLW",    # Move literal to W
-    "multiply_literal_with_w":          "MULLW",    # Multiply literal with W
-    "subtract_w_from_literal":          "SUBLW",    # Literal − W → W
-    "xor_literal_with_w":              "XORLW",    # Exclusive OR literal with W
-
-    # ── Control / branch operations ─────────────────────────────────────
-    "branch_if_carry":                  "BC",       # Branch if carry
-    "branch_if_negative":               "BN",       # Branch if negative
-    "branch_if_not_carry":              "BNC",      # Branch if not carry
-    "branch_if_not_negative":           "BNN",      # Branch if not negative
-    "branch_if_not_overflow":           "BNOV",     # Branch if not overflow
-    "branch_if_not_zero":               "BNZ",      # Branch if not zero
-    "branch_if_overflow":               "BOV",      # Branch if overflow
-    "branch_always":                    "BRA",      # Branch unconditionally
-    "branch_if_zero":                   "BZ",       # Branch if zero
-    "call_subroutine":                  "CALL",     # Call subroutine
-    "clear_watchdog_timer":             "CLRWDT",   # Clear watchdog timer
-    "decimal_adjust_w":                 "DAW",      # Decimal adjust W
-    "goto_address":                     "GOTO",     # Go to address
-    "no_operation":                     "NOP",      # No operation
-    "pop_return_stack":                 "POP",      # Pop top of return stack
-    "push_return_stack":                "PUSH",     # Push PC+2 onto return stack
-    "relative_call":                    "RCALL",    # Relative call
-    "software_reset":                   "RESET",    # Software device reset
-    "return_from_interrupt":            "RETFIE",   # Return from interrupt
-    "return_with_literal_in_w":         "RETLW",    # Return with literal in W
-    "return_from_subroutine":           "RETURN",   # Return from subroutine
-    "enter_sleep_mode":                 "SLEEP",    # Go into standby mode
-
-    # ── Table read / write operations ───────────────────────────────────
-    "table_read":                       "TBLRD*",       # Table read
-    "table_read_post_increment":        "TBLRD*+",      # Table read, post-inc
-    "table_read_post_decrement":        "TBLRD*-",      # Table read, post-dec
-    "table_read_pre_increment":         "TBLRD+*",      # Table read, pre-inc
-    "table_write":                      "TBLWT*",       # Table write
-    "table_write_post_increment":       "TBLWT*+",      # Table write, post-inc
-    "table_write_post_decrement":       "TBLWT*-",      # Table write, post-dec
-    "table_write_pre_increment":        "TBLWT+*",      # Table write, pre-inc
-
-    # ── Extended instruction set (XINST = 1) ────────────────────────────
-    "add_literal_to_fsr":               "ADDFSR",       # Add literal to FSRn
-    "add_literal_to_fsr2_and_return":   "ADDULNK",      # Add literal to FSR2 & return
-    "call_subroutine_using_w":          "CALLW",        # Call sub using PCLATU:PCLATH:W
-    "move_indexed_to_f":                "MOVSF",        # Move src [zs] to f(dest)
-    "move_indexed_to_indexed":          "MOVSS",        # Move src [zs] to dest [zd]
-    "push_literal":                     "PUSHL",        # Store literal at FSR2, dec FSR2
-    "subtract_literal_from_fsr":        "SUBFSR",       # Subtract literal from FSRn
-    "subtract_literal_from_fsr2_and_return": "SUBULNK", # Sub literal from FSR2 & return
-}
-
-# =============================================================================
-# PIC16 MID-RANGE INSTRUCTION SET — readable name → standard mnemonic (EN)
-# =============================================================================
-# Instructions shared with PIC18 (ADDWF, ANDWF, BCF, etc.) reuse the same
-# readable names above.  Only PIC16-specific instructions are listed here.
-#
-# Sources:
-#   Microchip PIC16F mid-range reference manual (DS33023)
-#   PIC16(L)F1xxx enhanced mid-range reference
-
-INSTRUCTION_MAP_PIC16: dict[str, str] = {
-
-    # ── PIC16 base set — unique to PIC16 ────────────────────────────────
-    "clear_w":                          "CLRW",        # Clear W
-    "rotate_left_f":                    "RLF",         # Rotate left f through carry
-    "rotate_right_f":                   "RRF",         # Rotate right f through carry
-    "option_load":                      "OPTION",      # Load OPTION register (legacy)
-    "load_tris":                        "TRIS",        # Load TRIS register (legacy)
-
-    # ── PIC16 enhanced mid-range additions (PIC16F1xxx) ─────────────────
-    "add_w_to_f_with_carry_16":         "ADDWFC",      # Add with carry
-    "subtract_w_from_f_with_borrow_16": "SUBWFB",      # Subtract with borrow
-    "logical_shift_left_f":             "LSLF",        # Logical shift left
-    "logical_shift_right_f":            "LSRF",        # Logical shift right
-    "arithmetic_shift_right_f":         "ASRF",        # Arithmetic shift right
-    "branch_relative":                  "BRA",         # Relative branch
-    "branch_relative_with_w":           "BRW",         # Relative branch using W
-    "call_subroutine_with_w":           "CALLW",       # Call using W as low address
-    "add_literal_to_fsr_16":            "ADDFSR",      # Add literal to FSRn
-    "move_indirect_from_fsr":           "MOVIW",       # Move indirect (FSR) to W
-    "move_w_indirect_to_fsr":           "MOVWI",       # Move W to indirect (FSR)
-    "move_literal_to_bsr_16":           "MOVLB",       # Move literal to BSR
-    "move_literal_to_pclath":           "MOVLP",       # Move literal to PCLATH
-    "software_reset_16":                "RESET",       # Software device reset
-}
-
-# =============================================================================
-# PIC16 MID-RANGE — Slovenian readable names
-# =============================================================================
-INSTRUCTION_MAP_PIC16_SI: dict[str, str] = {
-
-    # ── PIC16 osnovna — samo PIC16 ──────────────────────────────────────
-    "pocisti_w":                         "CLRW",
-    "zavrti_levo_f":                     "RLF",
-    "zavrti_desno_f":                    "RRF",
-    "nalozi_opcijo":                     "OPTION",
-    "nalozi_tris":                       "TRIS",
-
-    # ── PIC16 razširjeni srednji razred (PIC16F1xxx) ────────────────────
-    "pristej_w_k_f_s_prenosom_16":       "ADDWFC",
-    "odstej_w_od_f_z_izposojo_16":       "SUBWFB",
-    "logicni_pomik_levo_f":              "LSLF",
-    "logicni_pomik_desno_f":             "LSRF",
-    "aritmeticni_pomik_desno_f":         "ASRF",
-    "vejitev_relativna":                 "BRA",
-    "vejitev_relativna_z_w":             "BRW",
-    "klici_podprogram_z_w_16":           "CALLW",
-    "pristej_konstanto_k_fsr_16":        "ADDFSR",
-    "premakni_posredno_iz_fsr":          "MOVIW",
-    "premakni_w_posredno_v_fsr":         "MOVWI",
-    "premakni_konstanto_v_bsr_16":       "MOVLB",
-    "premakni_konstanto_v_pclath":       "MOVLP",
-    "programska_ponastavitev_16":        "RESET",
-}
-
-# =============================================================================
-# SLOVENIAN (SI) readable names → standard mnemonic  (PIC18)
-# =============================================================================
-INSTRUCTION_MAP_SI: dict[str, str] = {
-
-    # ── Bajtno usmerjene operacije z datotečnim registrom ────────────────
-    "pristej_w_k_f":                        "ADDWF",
-    "pristej_w_k_f_s_prenosom":              "ADDWFC",
-    "in_w_z_f":                              "ANDWF",
-    "pocisti_f":                             "CLRF",
-    "komplementiraj_f":                      "COMF",
-    "primerjaj_f_preskoci_ce_enako":          "CPFSEQ",
-    "primerjaj_f_preskoci_ce_vecje":          "CPFSGT",
-    "primerjaj_f_preskoci_ce_manjse":         "CPFSLT",
-    "zmanjsaj_f":                            "DECF",
-    "zmanjsaj_f_preskoci_ce_nic":             "DECFSZ",
-    "zmanjsaj_f_preskoci_ce_ni_nic":          "DCFSNZ",
-    "povecaj_f":                             "INCF",
-    "povecaj_f_preskoci_ce_nic":              "INCFSZ",
-    "povecaj_f_preskoci_ce_ni_nic":           "INFSNZ",
-    "ali_w_z_f":                             "IORWF",
-    "premakni_f":                            "MOVF",
-    "premakni_f_v_f":                        "MOVFF",
-    "premakni_w_v_f":                        "MOVWF",
-    "pomnozi_w_z_f":                         "MULWF",
-    "negiraj_f":                             "NEGF",
-    "zavrti_levo_f_skozi_prenos":             "RLCF",
-    "zavrti_levo_f_brez_prenosa":             "RLNCF",
-    "zavrti_desno_f_skozi_prenos":            "RRCF",
-    "zavrti_desno_f_brez_prenosa":            "RRNCF",
-    "nastavi_f":                             "SETF",
-    "odstej_f_od_w_z_izposojo":               "SUBFWB",
-    "odstej_w_od_f":                         "SUBWF",
-    "odstej_w_od_f_z_izposojo":               "SUBWFB",
-    "zamenjaj_polbajta_f":                   "SWAPF",
-    "testiraj_f_preskoci_ce_nic":             "TSTFSZ",
-    "xali_w_z_f":                            "XORWF",
-
-    # ── Bitno usmerjene operacije z datotečnim registrom ────────────────
-    "bit_pocisti_f":                         "BCF",
-    "bit_nastavi_f":                         "BSF",
-    "bit_testiraj_f_preskoci_ce_pociscen":    "BTFSC",
-    "bit_testiraj_f_preskoci_ce_nastavljen":  "BTFSS",
-    "bit_preklopi_f":                        "BTG",
-
-    # ── Operacije s konstantami ─────────────────────────────────────────
-    "pristej_konstanto_k_w":                 "ADDLW",
-    "in_konstanto_z_w":                      "ANDLW",
-    "ali_konstanto_z_w":                     "IORLW",
-    "premakni_konstanto_v_bsr":              "MOVLB",
-    "premakni_konstanto_v_w":                "MOVLW",
-    "pomnozi_konstanto_z_w":                 "MULLW",
-    "odstej_w_od_konstante":                 "SUBLW",
-    "xali_konstanto_z_w":                    "XORLW",
-
-    # ── Krmilne / vejne operacije ───────────────────────────────────────
-    "vejitev_ce_prenos":                     "BC",
-    "vejitev_ce_negativno":                  "BN",
-    "vejitev_ce_ni_prenosa":                 "BNC",
-    "vejitev_ce_ni_negativno":               "BNN",
-    "vejitev_ce_ni_prekoracitve":             "BNOV",
-    "vejitev_ce_ni_nic":                     "BNZ",
-    "vejitev_ce_prekoracitev":               "BOV",
-    "vejitev_vedno":                         "BRA",
-    "vejitev_ce_nic":                        "BZ",
-    "klici_podprogram":                      "CALL",
-    "pocisti_casovnik_psa":                  "CLRWDT",
-    "decimalno_prilagodi_w":                 "DAW",
-    "pojdi_na_naslov":                       "GOTO",
-    "brez_operacije":                        "NOP",
-    "odvzemi_iz_sklada":                     "POP",
-    "potisni_na_sklad":                      "PUSH",
-    "relativni_klic":                        "RCALL",
-    "programska_ponastavitev":               "RESET",
-    "vrni_se_iz_prekinitve":                 "RETFIE",
-    "vrni_se_s_konstanto_v_w":               "RETLW",
-    "vrni_se_iz_podprograma":                "RETURN",
-    "vstopi_v_spanje":                       "SLEEP",
-
-    # ── Operacije branja / pisanja tabele ───────────────────────────────
-    "beri_tabelo":                           "TBLRD*",
-    "beri_tabelo_povecaj_po":                "TBLRD*+",
-    "beri_tabelo_zmanjsaj_po":               "TBLRD*-",
-    "beri_tabelo_povecaj_pred":              "TBLRD+*",
-    "pisi_tabelo":                           "TBLWT*",
-    "pisi_tabelo_povecaj_po":                "TBLWT*+",
-    "pisi_tabelo_zmanjsaj_po":               "TBLWT*-",
-    "pisi_tabelo_povecaj_pred":              "TBLWT+*",
-
-    # ── Razširjeni nabor ukazov (XINST = 1) ────────────────────────────
-    "pristej_konstanto_k_fsr":               "ADDFSR",
-    "pristej_konstanto_k_fsr2_in_vrni":      "ADDULNK",
-    "klici_podprogram_z_w":                  "CALLW",
-    "premakni_indeksirano_v_f":              "MOVSF",
-    "premakni_indeksirano_v_indeksirano":    "MOVSS",
-    "potisni_konstanto":                     "PUSHL",
-    "odstej_konstanto_od_fsr":               "SUBFSR",
-    "odstej_konstanto_od_fsr2_in_vrni":      "SUBULNK",
-}
+# Forward maps: readable name → standard mnemonic
+INSTRUCTION_MAP: dict[str, str]          = _pic18_data["en"]
+INSTRUCTION_MAP_SI: dict[str, str]       = _pic18_data["si"]
+INSTRUCTION_MAP_PIC16: dict[str, str]    = _pic16_data["en"]
+INSTRUCTION_MAP_PIC16_SI: dict[str, str] = _pic16_data["si"]
 
 # =============================================================================
 # Merged map: all readable names (PIC18 EN/SI + PIC16 EN/SI) → standard mnemonic

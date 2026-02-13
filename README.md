@@ -53,15 +53,17 @@ vejitev_vedno ZANKA
 
 ```
 PIC18_redable_assembly_code/
-├── pic18_translator.py           # Readable .rasm → standard .asm (PIC16 + PIC18)
-├── pic18_reverse_translator.py   # Standard .asm → readable .rasm (PIC16 + PIC18)
-├── example.rasm                  # PIC18 English example (LED blink)
-├── example.asm                   # Translated output
-├── primer.rasm                   # PIC18 Slovenian example (LED blink)
-├── primer.asm                    # Translated output
-├── example_pic16.rasm            # PIC16 mid-range example (LED blink)
-├── example_pic16f1xxx.rasm       # PIC16 enhanced mid-range example (shifts, FSR)
-├── pic18-readable-asm/           # VS Code extension for syntax highlighting
+├── pic18_instructions.json        # PIC18 instruction definitions (EN + SI)
+├── pic16_instructions.json        # PIC16 instruction definitions (EN + SI)
+├── pic18_translator.py            # Readable .rasm → standard .asm (PIC16 + PIC18)
+├── pic18_reverse_translator.py    # Standard .asm → readable .rasm (PIC16 + PIC18)
+├── example.rasm                   # PIC18 English example (LED blink)
+├── example.asm                    # Translated output
+├── primer.rasm                    # PIC18 Slovenian example (LED blink)
+├── primer.asm                     # Translated output
+├── example_pic16.rasm             # PIC16 mid-range example (LED blink)
+├── example_pic16f1xxx.rasm        # PIC16 enhanced mid-range example (shifts, FSR)
+├── pic18-readable-asm/            # VS Code extension for syntax highlighting
 │   ├── package.json
 │   ├── language-configuration.json
 │   └── syntaxes/
@@ -69,12 +71,14 @@ PIC18_redable_assembly_code/
 └── README.md
 ```
 
+Instruction definitions are stored in **JSON files** (`pic18_instructions.json` and `pic16_instructions.json`) and loaded at runtime by both the forward and reverse translators. To add or modify instructions, edit the JSON files — no Python code changes needed.
+
 ---
 
 ## Requirements
 
 - Python 3.10 or later
-- No external dependencies (standard library only)
+- No external dependencies (standard library only: `json`, `re`, `argparse`, `pathlib`)
 
 ---
 
