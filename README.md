@@ -152,7 +152,11 @@ A standalone PyQt5 IDE modelled after MPLAB IDE v8.92 is included.
 - **Integrated Reverse Translate** — press **Shift+F7** to convert `.asm → .rasm`
 - **Compile to HEX** — press **F8** to assemble `.asm → .hex` using the Microchip assembler
 - **Full Build Pipeline** — press **Ctrl+F8** to run `.rasm → .asm → .hex` in one step
+- **Program Device** — press **F9** to flash `.hex` to a PIC via PICkit 2/3/4/SNAP
+- **Build All & Program** — press **Ctrl+F9** for the full pipeline `.rasm → .asm → .hex → program`
+- **Verify / Erase / Read ID** — verify flash contents, bulk erase, or read device ID
 - **Assembler Settings** — auto-detects MPASM (mpasmx), XC8 (pic-as), or gpasm; configurable via Tools → Assembler Settings
+- **Programmer Settings** — auto-detects pk2cmd (PICkit 2) or ipecmd (PICkit 3/4/SNAP); configurable via Tools → Programmer Settings
 - **Find / Replace** (Ctrl+F), Go to Line (Ctrl+G)
 - Classic MPLAB grey/blue theme with Fusion style
 
@@ -204,6 +208,57 @@ The setting is persisted across sessions.
 | **Shift+F7** | Reverse translate `.asm → .rasm` (English) |
 | **F8** | Compile `.asm → .hex` |
 | **Ctrl+F8** | Full build: `.rasm → .asm → .hex` |
+| **F9** | Program device with `.hex` |
+| **Shift+F9** | Verify device flash |
+| **Ctrl+F9** | Build All & Program: `.rasm → .asm → .hex → flash` |
+
+---
+
+## PICkit Programmer Integration
+
+The IDE can program PIC microcontrollers via a PICkit 2, PICkit 3, PICkit 4, or MPLAB SNAP debugger/programmer. Two command-line backends are supported:
+
+| Tool | Executable | Supported Hardware |
+|---|---|---|
+| **pk2cmd** | `pk2cmd.exe` | PICkit 2 |
+| **MPLAB IPE CLI** | `ipecmd.exe` | PICkit 3, PICkit 4, MPLAB SNAP |
+
+### Setup
+
+On first launch the IDE auto-detects installed programmer tools by scanning standard Microchip install directories and the system PATH. If nothing is found, go to **Tools → Programmer Settings** to browse for the executable manually and select the target PIC device (e.g. `PIC18F4550`, `PIC16F877A`).
+
+All settings are persisted across sessions via `QSettings`.
+
+### Programming Workflow
+
+1. Open (or create) a `.rasm` file in the editor.
+2. Press **Ctrl+F9** — the IDE translates `.rasm → .asm`, compiles `.asm → .hex`, and flashes the `.hex` to the connected PIC device in one step.
+3. Alternatively, press **F9** at any time to program an already-compiled `.hex` file.
+
+### Available Actions (Tools → Programmer)
+
+| Action | Shortcut | Description |
+|---|---|---|
+| Program Device | **F9** | Write `.hex` to flash |
+| Verify Device | **Shift+F9** | Verify flash matches `.hex` |
+| Erase Device | — | Bulk erase entire device (with confirmation) |
+| Read Device ID | — | Detect and display connected device ID |
+| Build All & Program | **Ctrl+F9** | `.rasm → .asm → .hex → flash` pipeline |
+| Programmer Settings | — | Configure tool, path, target device |
+
+### pk2cmd Installation
+
+[pk2cmd](https://www.microchip.com/en-us/development-tool/pg164120) is the free command-line tool for PICkit 2. Download it from Microchip's archive or community repositories. Make sure `pk2cmd.exe` and `PK2DeviceFile.dat` are in the same directory.
+
+### ipecmd (MPLAB IPE) Installation
+
+ipecmd ships with **MPLAB X IDE** (v3.x and later). It is typically located at:
+
+```
+C:\Program Files\Microchip\MPLAB X IDE\mplab_platform\mplab_ipe\ipecmd.exe
+```
+
+No separate download is needed if you already have MPLAB X installed.
 
 ---
 

@@ -18,6 +18,7 @@
 DELAY_COUNT1 EQU 0x20
 DELAY_COUNT2 EQU 0x21
 DELAY_COUNT3 EQU 0x22
+move_w_to_f reg_1
 
 ; ── Reset vector ────────────────────────────────────────────
     ORG 0x0000

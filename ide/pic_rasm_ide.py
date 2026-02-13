@@ -22,6 +22,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import shutil
+
 from PyQt5.QtCore import (
     QDir,
     QFileInfo,
@@ -142,7 +144,6 @@ def _find_pic_as() -> str | None:
 
 def _find_gpasm() -> str | None:
     """Search for gpasm.exe (open-source gputils assembler) on PATH."""
-    import shutil
     path = shutil.which("gpasm")
     return path if path else None
 
@@ -162,6 +163,85 @@ def _auto_detect_assembler() -> tuple[str, str]:
     if p:
         return ("gpasm", p)
     return ("none", "")
+
+
+# ---------------------------------------------------------------------------
+# PICkit / Programmer auto-detection
+# ---------------------------------------------------------------------------
+
+def _find_pk2cmd() -> str | None:
+    """Search for pk2cmd.exe (PICkit 2 command-line tool)."""
+    # Check PATH first
+    p = shutil.which("pk2cmd")
+    if p:
+        return p
+    candidates = [
+        Path(r"C:\Program Files\Microchip\PICkit 2 v2"),
+        Path(r"C:\Program Files (x86)\Microchip\PICkit 2 v2"),
+        Path(r"C:\pk2cmd"),
+        Path(r"C:\PICkit2"),
+    ]
+    for base in candidates:
+        if not base.exists():
+            continue
+        for hit in base.rglob("pk2cmd.exe"):
+            return str(hit)
+    return None
+
+
+def _find_ipecmd() -> str | None:
+    """Search for ipecmd.exe (MPLAB IPE command-line — PICkit 3/4/SNAP)."""
+    candidates = [
+        Path(r"C:\Program Files\Microchip\MPLABX"),
+        Path(r"C:\Program Files (x86)\Microchip\MPLABX"),
+    ]
+    for base in candidates:
+        if not base.exists():
+            continue
+        for hit in base.rglob("ipecmd.exe"):
+            return str(hit)
+    return None
+
+
+def _auto_detect_programmer() -> tuple[str, str]:
+    """Auto-detect a PICkit programmer tool. Returns (type, path) or ('none', '').
+
+    type is one of: 'pk2cmd', 'ipecmd', 'none'.
+    """
+    p = _find_ipecmd()
+    if p:
+        return ("ipecmd", p)
+    p = _find_pk2cmd()
+    if p:
+        return ("pk2cmd", p)
+    return ("none", "")
+
+
+# Common PIC device names for the device selector combo box
+_PIC_DEVICES = [
+    "PIC16F84A", "PIC16F87", "PIC16F88",
+    "PIC16F627A", "PIC16F628A", "PIC16F648A",
+    "PIC16F873A", "PIC16F874A", "PIC16F876A", "PIC16F877A",
+    "PIC16F882", "PIC16F883", "PIC16F884", "PIC16F886", "PIC16F887",
+    "PIC16F1827", "PIC16F1847",
+    "PIC16F1512", "PIC16F1513", "PIC16F1516", "PIC16F1517", "PIC16F1518", "PIC16F1519",
+    "PIC16F15244", "PIC16F15245",
+    "PIC16F18044", "PIC16F18045", "PIC16F18046",
+    "PIC16F18144", "PIC16F18145", "PIC16F18146",
+    "PIC16F18854", "PIC16F18855", "PIC16F18856", "PIC16F18857",
+    "PIC16F18875", "PIC16F18876", "PIC16F18877",
+    "PIC18F242", "PIC18F252", "PIC18F442", "PIC18F452",
+    "PIC18F1220", "PIC18F1320", "PIC18F2220", "PIC18F2320",
+    "PIC18F2420", "PIC18F2520", "PIC18F2550", "PIC18F2580",
+    "PIC18F2620", "PIC18F2680",
+    "PIC18F4420", "PIC18F4520", "PIC18F4550", "PIC18F4580",
+    "PIC18F4620", "PIC18F4680",
+    "PIC18F24K50", "PIC18F25K50", "PIC18F45K50",
+    "PIC18F25K80", "PIC18F26K80", "PIC18F45K80", "PIC18F46K80",
+    "PIC18F25Q10", "PIC18F45Q10", "PIC18F46Q10",
+    "PIC18F26Q43", "PIC18F27Q43", "PIC18F46Q43", "PIC18F47Q43",
+    "PIC18F26K42", "PIC18F27K42", "PIC18F46K42", "PIC18F47K42",
+]
 
 # ---------------------------------------------------------------------------
 # Load readable instruction names from JSON for syntax highlighting
@@ -659,6 +739,10 @@ class FindReplaceBar(QWidget):
 # Assembler Settings Dialog
 # ═══════════════════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Assembler Settings Dialog
+# ═══════════════════════════════════════════════════════════════════════════
+
 class AssemblerSettingsDialog(QDialog):
     """Dialog for configuring the Microchip PIC assembler path."""
 
@@ -764,6 +848,123 @@ class AssemblerSettingsDialog(QDialog):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Programmer Settings Dialog
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ProgrammerSettingsDialog(QDialog):
+    """Dialog for configuring the PICkit programmer tool, device, and options."""
+
+    def __init__(self, parent=None, prog_type: str = "none", prog_path: str = "",
+                 device: str = "PIC18F4550"):
+        super().__init__(parent)
+        self.setWindowTitle("Programmer Settings")
+        self.setMinimumWidth(600)
+
+        layout = QVBoxLayout(self)
+
+        # ─ Programmer type ─
+        type_group = QGroupBox("Programmer Tool")
+        type_layout = QVBoxLayout(type_group)
+
+        self._radio_ipecmd = QRadioButton(
+            "MPLAB IPE (ipecmd)  —  PICkit 3 / PICkit 4 / MPLAB SNAP")
+        self._radio_pk2cmd = QRadioButton(
+            "pk2cmd  —  PICkit 2")
+        self._radio_none = QRadioButton("None — programmer not configured")
+
+        type_layout.addWidget(self._radio_ipecmd)
+        type_layout.addWidget(self._radio_pk2cmd)
+        type_layout.addWidget(self._radio_none)
+        layout.addWidget(type_group)
+
+        radio_map = {
+            "ipecmd": self._radio_ipecmd,
+            "pk2cmd": self._radio_pk2cmd,
+        }
+        radio_map.get(prog_type, self._radio_none).setChecked(True)
+
+        # ─ Path ─
+        path_group = QGroupBox("Programmer Executable Path")
+        path_layout = QHBoxLayout(path_group)
+        self._path_edit = QLineEdit(prog_path)
+        self._path_edit.setPlaceholderText("e.g. C:\\Program Files\\Microchip\\MPLABX\\...\\ipecmd.exe")
+        path_layout.addWidget(self._path_edit)
+        btn_browse = QPushButton("Browse...")
+        btn_browse.clicked.connect(self._browse)
+        path_layout.addWidget(btn_browse)
+        btn_detect = QPushButton("Auto-Detect")
+        btn_detect.clicked.connect(self._auto_detect)
+        path_layout.addWidget(btn_detect)
+        layout.addWidget(path_group)
+
+        # ─ Device ─
+        dev_group = QGroupBox("Target Device")
+        dev_layout = QHBoxLayout(dev_group)
+        dev_layout.addWidget(QLabel("Device:"))
+        self._device_combo = QComboBox()
+        self._device_combo.setEditable(True)
+        self._device_combo.addItems(_PIC_DEVICES)
+        idx = self._device_combo.findText(device)
+        if idx >= 0:
+            self._device_combo.setCurrentIndex(idx)
+        else:
+            self._device_combo.setEditText(device)
+        self._device_combo.setMinimumWidth(200)
+        dev_layout.addWidget(self._device_combo)
+        dev_layout.addStretch()
+        layout.addWidget(dev_group)
+
+        # ─ Buttons ─
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _browse(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select Programmer Executable", "",
+            "Executables (*.exe *.jar);;All Files (*)",
+        )
+        if path:
+            self._path_edit.setText(path)
+            name = Path(path).name.lower()
+            if "ipecmd" in name or "ipe" in name:
+                self._radio_ipecmd.setChecked(True)
+            elif "pk2cmd" in name:
+                self._radio_pk2cmd.setChecked(True)
+
+    def _auto_detect(self):
+        prog_type, prog_path = _auto_detect_programmer()
+        if prog_type != "none":
+            self._path_edit.setText(prog_path)
+            radio_map = {
+                "ipecmd": self._radio_ipecmd,
+                "pk2cmd": self._radio_pk2cmd,
+            }
+            radio_map.get(prog_type, self._radio_none).setChecked(True)
+            QMessageBox.information(self, "Found", f"Detected {prog_type}:\n{prog_path}")
+        else:
+            QMessageBox.warning(
+                self, "Not Found",
+                "No PICkit programmer tool found.\n\n"
+                "Searched for:\n"
+                "  • ipecmd.exe  (MPLAB IPE — PICkit 3/4/SNAP)\n"
+                "  • pk2cmd.exe  (PICkit 2)\n\n"
+                "Please install one or browse manually.",
+            )
+
+    def get_result(self) -> tuple[str, str, str]:
+        """Return (prog_type, prog_path, device)."""
+        if self._radio_ipecmd.isChecked():
+            t = "ipecmd"
+        elif self._radio_pk2cmd.isChecked():
+            t = "pk2cmd"
+        else:
+            t = "none"
+        return (t, self._path_edit.text().strip(), self._device_combo.currentText().strip())
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Main IDE Window
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -791,6 +992,18 @@ class MplabIDE(QMainWindow):
                 self._asm_path = detected_path
                 self._settings.setValue("assembler/type", self._asm_type)
                 self._settings.setValue("assembler/path", self._asm_path)
+
+        # ── Programmer settings (persisted via QSettings) ──
+        self._prog_type = self._settings.value("programmer/type", "none")
+        self._prog_path = self._settings.value("programmer/path", "")
+        self._prog_device = self._settings.value("programmer/device", "PIC18F4550")
+        if self._prog_type == "none" or not self._prog_path:
+            detected_type, detected_path = _auto_detect_programmer()
+            if detected_type != "none":
+                self._prog_type = detected_type
+                self._prog_path = detected_path
+                self._settings.setValue("programmer/type", self._prog_type)
+                self._settings.setValue("programmer/path", self._prog_path)
 
         self._init_central()
         self._init_project_tree()
@@ -1097,6 +1310,36 @@ class MplabIDE(QMainWindow):
 
         tools_menu.addSeparator()
 
+        # ── Programmer ──
+        prog_menu = tools_menu.addMenu("&Programmer")
+
+        act_prog_program = prog_menu.addAction("&Program Device")
+        act_prog_program.setShortcut(QKeySequence("F9"))
+        act_prog_program.triggered.connect(self._program_device)
+
+        act_prog_verify = prog_menu.addAction("&Verify")
+        act_prog_verify.setShortcut(QKeySequence("Shift+F9"))
+        act_prog_verify.triggered.connect(self._verify_device)
+
+        act_prog_erase = prog_menu.addAction("&Erase Device")
+        act_prog_erase.triggered.connect(self._erase_device)
+
+        act_prog_read_id = prog_menu.addAction("Read Device &ID")
+        act_prog_read_id.triggered.connect(self._read_device_id)
+
+        prog_menu.addSeparator()
+
+        act_prog_build_program = prog_menu.addAction("&Build All && Program")
+        act_prog_build_program.setShortcut(QKeySequence("Ctrl+F9"))
+        act_prog_build_program.triggered.connect(self._build_all_and_program)
+
+        prog_menu.addSeparator()
+
+        act_prog_settings = prog_menu.addAction("Programmer &Settings...")
+        act_prog_settings.triggered.connect(self._programmer_settings)
+
+        tools_menu.addSeparator()
+
         act_ref = tools_menu.addAction("Instruction &Reference")
         act_ref.setShortcut(QKeySequence("F1"))
         act_ref.triggered.connect(self._show_reference)
@@ -1138,7 +1381,10 @@ class MplabIDE(QMainWindow):
         _add_btn("⚙", "Compile .asm → .hex (F8)", self._compile_current)
         _add_btn("🚀", "Build All: .rasm → .asm → .hex (Ctrl+F8)", self._build_and_compile_current)
         tb.addSeparator()
-        _add_btn("🔍", "Find / Replace (Ctrl+F)", self._find_bar.show_find)
+        _add_btn("�", "Program Device (F9)", self._program_device)
+        _add_btn("⚡", "Build All & Program (Ctrl+F9)", self._build_all_and_program)
+        tb.addSeparator()
+        _add_btn("�🔍", "Find / Replace (Ctrl+F)", self._find_bar.show_find)
 
         self.addToolBar(tb)
 
@@ -1646,6 +1892,366 @@ class MplabIDE(QMainWindow):
             self.output(f"Error: {e}")
         self.output("")
 
+    # ── programmer (PICkit) integration ───────────────────────────────────
+
+    def _programmer_settings(self):
+        """Open the programmer settings dialog."""
+        dlg = ProgrammerSettingsDialog(
+            self, self._prog_type, self._prog_path, self._prog_device)
+        if dlg.exec_() == QDialog.Accepted:
+            self._prog_type, self._prog_path, self._prog_device = dlg.get_result()
+            self._settings.setValue("programmer/type", self._prog_type)
+            self._settings.setValue("programmer/path", self._prog_path)
+            self._settings.setValue("programmer/device", self._prog_device)
+            if self._prog_type != "none" and self._prog_path:
+                self.output(
+                    f"Programmer set: {self._prog_type} → {self._prog_path}  "
+                    f"Device: {self._prog_device}")
+            else:
+                self.output("Programmer: not configured.")
+
+    def _check_programmer(self) -> bool:
+        """Verify that a programmer is configured. Prompt settings if not."""
+        if self._prog_type == "none" or not self._prog_path:
+            reply = QMessageBox.question(
+                self, "Programmer Not Configured",
+                "No PICkit programmer is configured.\n\n"
+                "Would you like to configure it now?",
+                QMessageBox.Yes | QMessageBox.No,
+            )
+            if reply == QMessageBox.Yes:
+                self._programmer_settings()
+            return self._prog_type != "none" and bool(self._prog_path)
+        if not Path(self._prog_path).exists():
+            self.output(f"ERROR: Programmer tool not found at: {self._prog_path}")
+            self.output("Go to Tools → Programmer → Programmer Settings to fix the path.")
+            return False
+        return True
+
+    def _run_programmer_cmd(self, cmd: list[str], action_label: str,
+                            cwd: str | None = None) -> bool:
+        """Run a programmer command and display output. Returns True on success."""
+        self.output(f"Programmer: {self._prog_type}  |  Device: {self._prog_device}")
+        self.output(f"Action:     {action_label}")
+        self.output(f"Command:    {' '.join(cmd)}")
+        self.output("─" * 60)
+
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=120,
+                cwd=cwd,
+            )
+            if result.stdout:
+                self.output(result.stdout.strip())
+            if result.stderr:
+                self.output(result.stderr.strip())
+            if result.returncode == 0:
+                self.output(f"{action_label} completed successfully.")
+                return True
+            else:
+                self.output(f"{action_label} FAILED (exit code {result.returncode}).")
+                return False
+        except FileNotFoundError:
+            self.output(f"ERROR: Programmer executable not found: {self._prog_path}")
+            self.output("Go to Tools → Programmer → Programmer Settings.")
+            return False
+        except subprocess.TimeoutExpired:
+            self.output(f"ERROR: {action_label} timed out (120 s).")
+            return False
+        except Exception as e:
+            self.output(f"{action_label} error: {e}")
+            return False
+
+    def _find_hex_for_current(self) -> str | None:
+        """Find the .hex file corresponding to the current editor file."""
+        editor = self.current_editor()
+        if not editor:
+            self.output("No file open.")
+            return None
+        fp = getattr(editor, "_filepath", "")
+        if not fp:
+            self.output("Save the file first.")
+            return None
+
+        # Determine hex path
+        if fp.lower().endswith(".hex"):
+            return fp
+        elif fp.lower().endswith(".asm"):
+            hex_path = fp[:-4] + ".hex"
+        elif fp.lower().endswith(".rasm"):
+            hex_path = fp[:-5] + ".hex"
+        else:
+            hex_path = fp + ".hex"
+
+        if not Path(hex_path).exists():
+            self.output(f"HEX file not found: {hex_path}")
+            self.output("Build the project first (F8 or Ctrl+F8).")
+            return None
+        return hex_path
+
+    def _program_device(self):
+        """Program the target device with the .hex file."""
+        if not self._check_programmer():
+            return
+        hex_path = self._find_hex_for_current()
+        if not hex_path:
+            return
+
+        self.output("═" * 60)
+        self.output("  PROGRAMMING DEVICE")
+        self.output("═" * 60)
+
+        cwd = str(Path(hex_path).parent)
+
+        if self._prog_type == "pk2cmd":
+            cmd = [
+                self._prog_path,
+                "-P" + self._prog_device,
+                "-F" + hex_path,
+                "-M",   # program
+                "-J",   # power target from PICkit (5V)
+            ]
+        elif self._prog_type == "ipecmd":
+            cmd = [
+                self._prog_path,
+                "-P" + self._prog_device,
+                "-TPPK3",   # tool = PICkit 3 (also works for PICkit 4 / SNAP)
+                "-F" + hex_path,
+                "-M",       # program
+                "-W",       # power target from programmer
+            ]
+        else:
+            self.output("ERROR: Unknown programmer type.")
+            return
+
+        self._run_programmer_cmd(cmd, "Program", cwd)
+        self.output("")
+
+    def _verify_device(self):
+        """Verify the target device against the .hex file."""
+        if not self._check_programmer():
+            return
+        hex_path = self._find_hex_for_current()
+        if not hex_path:
+            return
+
+        self.output("═" * 60)
+        self.output("  VERIFYING DEVICE")
+        self.output("═" * 60)
+
+        cwd = str(Path(hex_path).parent)
+
+        if self._prog_type == "pk2cmd":
+            cmd = [
+                self._prog_path,
+                "-P" + self._prog_device,
+                "-F" + hex_path,
+                "-Y",   # verify
+                "-J",
+            ]
+        elif self._prog_type == "ipecmd":
+            cmd = [
+                self._prog_path,
+                "-P" + self._prog_device,
+                "-TPPK3",
+                "-F" + hex_path,
+                "-Y",   # verify
+                "-W",
+            ]
+        else:
+            self.output("ERROR: Unknown programmer type.")
+            return
+
+        self._run_programmer_cmd(cmd, "Verify", cwd)
+        self.output("")
+
+    def _erase_device(self):
+        """Erase the target device (bulk erase)."""
+        if not self._check_programmer():
+            return
+
+        reply = QMessageBox.question(
+            self, "Erase Device",
+            f"This will perform a BULK ERASE on {self._prog_device}.\n\n"
+            "All program memory, data EEPROM, and configuration bits will be erased.\n\n"
+            "Continue?",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        self.output("═" * 60)
+        self.output("  ERASING DEVICE")
+        self.output("═" * 60)
+
+        if self._prog_type == "pk2cmd":
+            cmd = [
+                self._prog_path,
+                "-P" + self._prog_device,
+                "-E",   # erase
+                "-J",
+            ]
+        elif self._prog_type == "ipecmd":
+            cmd = [
+                self._prog_path,
+                "-P" + self._prog_device,
+                "-TPPK3",
+                "-E",   # erase
+                "-W",
+            ]
+        else:
+            self.output("ERROR: Unknown programmer type.")
+            return
+
+        self._run_programmer_cmd(cmd, "Erase")
+        self.output("")
+
+    def _read_device_id(self):
+        """Read and display the target device ID."""
+        if not self._check_programmer():
+            return
+
+        self.output("═" * 60)
+        self.output("  READING DEVICE ID")
+        self.output("═" * 60)
+
+        if self._prog_type == "pk2cmd":
+            cmd = [
+                self._prog_path,
+                "-P" + self._prog_device,
+                "-I",   # read device ID
+                "-J",
+            ]
+        elif self._prog_type == "ipecmd":
+            # ipecmd doesn't have a direct "read ID" flag;
+            # we connect and the ID is printed automatically
+            cmd = [
+                self._prog_path,
+                "-P" + self._prog_device,
+                "-TPPK3",
+                "-W",
+            ]
+        else:
+            self.output("ERROR: Unknown programmer type.")
+            return
+
+        self._run_programmer_cmd(cmd, "Read Device ID")
+        self.output("")
+
+    def _build_all_and_program(self):
+        """Full pipeline: .rasm → .asm → .hex → Program device."""
+        editor = self.current_editor()
+        if not editor:
+            self.output("No file open.")
+            return
+        fp = getattr(editor, "_filepath", "")
+        if not fp:
+            self.output("Save the file first.")
+            return
+
+        # Step 1 + 2: Build (translate + compile)
+        if fp.lower().endswith(".rasm"):
+            idx = self._tabs.currentIndex()
+            self._save_file_at(idx)
+
+            asm_path = fp[:-5] + ".asm"
+            hex_path = fp[:-5] + ".hex"
+
+            self.output("═" * 60)
+            self.output("  FULL BUILD & PROGRAM: .rasm → .asm → .hex → Device")
+            self.output("═" * 60)
+
+            # Step 1: translate
+            self.output(f"\nStep 1: Translate {Path(fp).name} → {Path(asm_path).name}")
+            self.output("─" * 60)
+            try:
+                result = subprocess.run(
+                    [self._python, str(_TRANSLATOR), fp, "-o", asm_path],
+                    capture_output=True, text=True, timeout=30,
+                )
+                if result.stdout:
+                    self.output(result.stdout.strip())
+                if result.stderr:
+                    self.output(result.stderr.strip())
+                if result.returncode != 0:
+                    self.output(f"Translation failed (exit code {result.returncode}). Aborting.")
+                    self.output("")
+                    return
+                self.output("Translation successful.")
+            except Exception as e:
+                self.output(f"Translation error: {e}")
+                self.output("")
+                return
+
+            # Step 2: compile
+            self.output(f"\nStep 2: Compile {Path(asm_path).name} → {Path(asm_path).stem}.hex")
+            self.output("─" * 60)
+            if not self._compile_asm_file(asm_path):
+                self.output("Compile failed. Aborting.")
+                self.output("")
+                return
+
+        elif fp.lower().endswith(".asm"):
+            idx = self._tabs.currentIndex()
+            self._save_file_at(idx)
+            hex_path = fp[:-4] + ".hex"
+
+            self.output("═" * 60)
+            self.output("  BUILD & PROGRAM: .asm → .hex → Device")
+            self.output("═" * 60)
+
+            self.output(f"\nStep 1: Compile {Path(fp).name} → {Path(fp).stem}.hex")
+            self.output("─" * 60)
+            if not self._compile_asm_file(fp):
+                self.output("Compile failed. Aborting.")
+                self.output("")
+                return
+        else:
+            self.output(f"Build & Program expects a .rasm or .asm file, got: {fp}")
+            return
+
+        # Step 3: program
+        if not Path(hex_path).exists():
+            self.output(f"\nHEX file not found: {hex_path}")
+            self.output("Aborting programming step.")
+            self.output("")
+            return
+
+        if not self._check_programmer():
+            self.output("Programmer not configured. Skipping programming step.")
+            self.output("")
+            return
+
+        step_n = "Step 3" if fp.lower().endswith(".rasm") else "Step 2"
+        self.output(f"\n{step_n}: Program {Path(hex_path).name} → {self._prog_device}")
+        self.output("─" * 60)
+
+        cwd = str(Path(hex_path).parent)
+        if self._prog_type == "pk2cmd":
+            cmd = [
+                self._prog_path,
+                "-P" + self._prog_device,
+                "-F" + hex_path,
+                "-M",
+                "-J",
+            ]
+        elif self._prog_type == "ipecmd":
+            cmd = [
+                self._prog_path,
+                "-P" + self._prog_device,
+                "-TPPK3",
+                "-F" + hex_path,
+                "-M",
+                "-W",
+            ]
+        else:
+            self.output("ERROR: Unknown programmer type.")
+            self.output("")
+            return
+
+        self._run_programmer_cmd(cmd, "Program", cwd)
+        self.output("")
+
     # ── about ────────────────────────────────────────────────────────────
 
     def _about(self):
@@ -1660,9 +2266,12 @@ class MplabIDE(QMainWindow):
             "<li>Integrated forward &amp; reverse translator</li>"
             "<li>Compile to .hex via Microchip MPASM / pic-as / gpasm</li>"
             "<li>Full pipeline: .rasm → .asm → .hex</li>"
+            "<li>PICkit programming: program, verify, erase, read ID</li>"
             "<li>Project tree, find/replace, line numbers</li>"
             "</ul>"
             f"<p><b>Assembler:</b> {self._asm_type} — <code>{self._asm_path or 'not configured'}</code></p>"
+            f"<p><b>Programmer:</b> {self._prog_type} — <code>{self._prog_path or 'not configured'}</code></p>"
+            f"<p><b>Device:</b> {self._prog_device}</p>"
             "<p>Built with PyQt5.</p>",
         )
 
