@@ -15,3 +15,7 @@ dist/
 *.swp
 *.swo
 *~
+
+# Compiler executables in project (keep directory structure, ignore binaries)
+compilers/**/*.exe
+compilers/**/*.dat

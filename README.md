@@ -194,9 +194,31 @@ The IDE can compile `.asm` files to `.hex` using an official Microchip PIC assem
 | **XC8 pic-as** | `pic-as.exe` | Part of MPLAB XC8 compiler |
 | **gpasm** | `gpasm.exe` | Open-source [gputils](https://gputils.sourceforge.io/) |
 
+### Project-Local Compilers (`compilers/`)
+
+The project includes a `compilers/` directory with dedicated subdirectories for each assembler:
+
+```
+compilers/
+├── mpasm/          ← Place mpasmx.exe (or mpasm.exe) here
+├── xc8-pic-as/     ← Place pic-as.exe here
+├── gpasm/          ← Place gpasm.exe here
+└── README.md
+```
+
+**The IDE searches `compilers/` first**, then falls back to system-wide Microchip install directories and the system PATH. This makes the project portable — just drop the compiler executable into the right subdirectory and it will be detected automatically.
+
+You can also use **Tools → Assembler Settings → Copy Current Assembler to Project** to automatically copy the currently configured assembler executable into the local directory.
+
 ### Setup
 
-On first launch the IDE auto-detects installed assemblers by scanning common Microchip install directories. If none is found, go to **Tools → Assembler Settings** to browse for the executable manually.
+On first launch the IDE auto-detects installed assemblers by scanning:
+
+1. **Project-local** `compilers/` subdirectories
+2. **System-wide** `Program Files\Microchip\...` locations
+3. **System PATH** (gpasm)
+
+If none is found, go to **Tools → Assembler Settings** to browse for the executable manually.
 
 The setting is persisted across sessions.
 

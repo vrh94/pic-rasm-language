@@ -105,23 +105,38 @@ else:
     _REVERSE_TRANSLATOR = _PROJECT_ROOT / "pic18_reverse_translator.py"
 
 # ---------------------------------------------------------------------------
+# Local compilers directory — users can place executables here
+# ---------------------------------------------------------------------------
+_COMPILERS_DIR = _PROJECT_ROOT / "compilers"
+
+# ---------------------------------------------------------------------------
 # Microchip Assembler auto-detection
 # ---------------------------------------------------------------------------
 
 def _find_mpasmx() -> str | None:
-    """Search for mpasmx.exe (MPASM) in common Microchip install locations."""
+    """Search for mpasmx.exe (MPASM).
+
+    Search order:
+      1. Project-local  compilers/mpasm/
+      2. System-wide    Program Files\\Microchip\\...
+    """
+    # ── Local project directory first ──
+    local_dir = _COMPILERS_DIR / "mpasm"
+    if local_dir.exists():
+        for name in ("mpasmx.exe", "mpasm.exe"):
+            for hit in local_dir.rglob(name):
+                return str(hit)
+
+    # ── System-wide locations ──
     candidates = [
-        # MPLAB X bundled MPASM
         Path(r"C:\Program Files\Microchip\MPLABX"),
         Path(r"C:\Program Files (x86)\Microchip\MPLABX"),
-        # Legacy MPLAB IDE 8.x
         Path(r"C:\Program Files\Microchip\MPASM Suite"),
         Path(r"C:\Program Files (x86)\Microchip\MPASM Suite"),
     ]
     for base in candidates:
         if not base.exists():
             continue
-        # Walk to find mpasmx.exe or mpasm.exe
         for name in ("mpasmx.exe", "mpasm.exe"):
             for hit in base.rglob(name):
                 return str(hit)
@@ -129,7 +144,19 @@ def _find_mpasmx() -> str | None:
 
 
 def _find_pic_as() -> str | None:
-    """Search for pic-as.exe (XC8 PIC Assembler) in common install locations."""
+    """Search for pic-as.exe (XC8 PIC Assembler).
+
+    Search order:
+      1. Project-local  compilers/xc8-pic-as/
+      2. System-wide    Program Files\\Microchip\\xc8\\...
+    """
+    # ── Local project directory first ──
+    local_dir = _COMPILERS_DIR / "xc8-pic-as"
+    if local_dir.exists():
+        for hit in local_dir.rglob("pic-as.exe"):
+            return str(hit)
+
+    # ── System-wide locations ──
     candidates = [
         Path(r"C:\Program Files\Microchip\xc8"),
         Path(r"C:\Program Files (x86)\Microchip\xc8"),
@@ -143,7 +170,19 @@ def _find_pic_as() -> str | None:
 
 
 def _find_gpasm() -> str | None:
-    """Search for gpasm.exe (open-source gputils assembler) on PATH."""
+    """Search for gpasm.exe (open-source gputils).
+
+    Search order:
+      1. Project-local  compilers/gpasm/
+      2. System PATH
+    """
+    # ── Local project directory first ──
+    local_dir = _COMPILERS_DIR / "gpasm"
+    if local_dir.exists():
+        for hit in local_dir.rglob("gpasm.exe"):
+            return str(hit)
+
+    # ── System PATH ──
     path = shutil.which("gpasm")
     return path if path else None
 
@@ -151,6 +190,7 @@ def _find_gpasm() -> str | None:
 def _auto_detect_assembler() -> tuple[str, str]:
     """Auto-detect a PIC assembler. Returns (type, path) or ('none', '').
 
+    Searches project-local ``compilers/`` directory first, then system locations.
     type is one of: 'mpasmx', 'pic-as', 'gpasm', 'none'.
     """
     p = _find_mpasmx()
@@ -739,21 +779,44 @@ class FindReplaceBar(QWidget):
 # Assembler Settings Dialog
 # ═══════════════════════════════════════════════════════════════════════════
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Assembler Settings Dialog
-# ═══════════════════════════════════════════════════════════════════════════
-
 class AssemblerSettingsDialog(QDialog):
-    """Dialog for configuring the Microchip PIC assembler path."""
+    """Dialog for configuring the Microchip PIC assembler path.
+
+    Shows the local ``compilers/`` directory status and lets the user
+    copy a system-installed assembler into the project for portability.
+    """
 
     def __init__(self, parent=None, asm_type: str = "none", asm_path: str = ""):
         super().__init__(parent)
         self.setWindowTitle("Assembler Settings")
-        self.setMinimumWidth(560)
+        self.setMinimumWidth(620)
 
         layout = QVBoxLayout(self)
 
-        # ─ Assembler type group ─
+        # ── Local compilers status ──────────────────────────────────
+        local_group = QGroupBox("Project Compilers Directory")
+        local_layout = QVBoxLayout(local_group)
+
+        self._local_status_label = QLabel()
+        self._local_status_label.setWordWrap(True)
+        local_layout.addWidget(self._local_status_label)
+
+        local_btn_row = QHBoxLayout()
+        btn_open_dir = QPushButton("Open compilers/ Folder")
+        btn_open_dir.clicked.connect(self._open_compilers_dir)
+        local_btn_row.addWidget(btn_open_dir)
+        btn_copy = QPushButton("Copy Current Assembler to Project…")
+        btn_copy.setToolTip(
+            "Copy the currently selected assembler executable\n"
+            "into the project's compilers/ directory for portability."
+        )
+        btn_copy.clicked.connect(self._copy_to_project)
+        local_btn_row.addWidget(btn_copy)
+        local_btn_row.addStretch()
+        local_layout.addLayout(local_btn_row)
+        layout.addWidget(local_group)
+
+        # ── Assembler type radio buttons ────────────────────────────
         type_group = QGroupBox("Assembler")
         type_layout = QVBoxLayout(type_group)
 
@@ -776,13 +839,15 @@ class AssemblerSettingsDialog(QDialog):
         }
         radio_map.get(asm_type, self._radio_none).setChecked(True)
 
-        # ─ Path row ─
+        # ── Path row ────────────────────────────────────────────────
         path_group = QGroupBox("Assembler Executable Path")
         path_layout = QHBoxLayout(path_group)
         self._path_edit = QLineEdit(asm_path)
-        self._path_edit.setPlaceholderText("e.g. C:\\Program Files\\Microchip\\MPLABX\\...\\mpasmx.exe")
+        self._path_edit.setPlaceholderText(
+            "e.g. C:\\Program Files\\Microchip\\MPLABX\\...\\mpasmx.exe"
+        )
         path_layout.addWidget(self._path_edit)
-        btn_browse = QPushButton("Browse...")
+        btn_browse = QPushButton("Browse…")
         btn_browse.clicked.connect(self._browse)
         path_layout.addWidget(btn_browse)
         btn_detect = QPushButton("Auto-Detect")
@@ -790,11 +855,107 @@ class AssemblerSettingsDialog(QDialog):
         path_layout.addWidget(btn_detect)
         layout.addWidget(path_group)
 
-        # ─ Buttons ─
+        # ── OK / Cancel ────────────────────────────────────────────
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+        # Refresh the local-status label
+        self._refresh_local_status()
+
+    # ── helpers ──────────────────────────────────────────────────────
+
+    def _refresh_local_status(self):
+        """Update the label showing which compilers are present locally."""
+        lines: list[str] = [f"<b>Path:</b> {_COMPILERS_DIR}"]
+        found_any = False
+        checks = [
+            ("mpasm", "mpasm", ("mpasmx.exe", "mpasm.exe")),
+            ("xc8-pic-as", "pic-as", ("pic-as.exe",)),
+            ("gpasm", "gpasm", ("gpasm.exe",)),
+        ]
+        for subdir, label, exes in checks:
+            d = _COMPILERS_DIR / subdir
+            found = False
+            if d.exists():
+                for exe in exes:
+                    if list(d.rglob(exe)):
+                        found = True
+                        found_any = True
+                        break
+            icon = "✅" if found else "❌"
+            lines.append(f"  {icon}  <code>compilers/{subdir}/</code> — {label}")
+        if not found_any:
+            lines.append(
+                "<i>No compilers found locally. Place executables in the "
+                "subdirectories above, or use <b>Copy Current Assembler to "
+                "Project</b>.</i>"
+            )
+        self._local_status_label.setText("<br>".join(lines))
+
+    def _open_compilers_dir(self):
+        """Open the compilers/ folder in the system file explorer."""
+        _COMPILERS_DIR.mkdir(parents=True, exist_ok=True)
+        if sys.platform == "win32":
+            os.startfile(str(_COMPILERS_DIR))  # noqa: S606
+        else:
+            import subprocess as _sp
+            _sp.Popen(["xdg-open", str(_COMPILERS_DIR)])
+
+    def _copy_to_project(self):
+        """Copy the currently selected assembler exe into compilers/."""
+        src = self._path_edit.text().strip()
+        if not src or not Path(src).is_file():
+            QMessageBox.warning(
+                self, "No Assembler Selected",
+                "Select a valid assembler executable first\n"
+                "(browse or auto-detect), then click Copy.",
+            )
+            return
+
+        # Determine target subdir from radio selection
+        if self._radio_mpasmx.isChecked():
+            subdir = "mpasm"
+        elif self._radio_pic_as.isChecked():
+            subdir = "xc8-pic-as"
+        elif self._radio_gpasm.isChecked():
+            subdir = "gpasm"
+        else:
+            QMessageBox.warning(
+                self, "No Assembler Type",
+                "Select an assembler type (MPASM, pic-as, or gpasm) first.",
+            )
+            return
+
+        dest_dir = _COMPILERS_DIR / subdir
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / Path(src).name
+
+        if dest.exists():
+            reply = QMessageBox.question(
+                self, "Overwrite?",
+                f"{dest.name} already exists in compilers/{subdir}/.\n\n"
+                "Overwrite?",
+                QMessageBox.Yes | QMessageBox.No,
+            )
+            if reply != QMessageBox.Yes:
+                return
+
+        try:
+            shutil.copy2(src, dest)
+            # Update path to point to the local copy
+            self._path_edit.setText(str(dest))
+            self._refresh_local_status()
+            QMessageBox.information(
+                self, "Copied",
+                f"Assembler copied to:\n{dest}\n\n"
+                "The path has been updated to use the local copy.",
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self, "Copy Failed", f"Could not copy assembler:\n{exc}",
+            )
 
     def _browse(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -822,16 +983,21 @@ class AssemblerSettingsDialog(QDialog):
                 "gpasm": self._radio_gpasm,
             }
             radio_map.get(asm_type, self._radio_none).setChecked(True)
-            QMessageBox.information(self, "Found", f"Detected {asm_type}:\n{asm_path}")
+            # Note if it was found in the local compilers/ directory
+            source = "project compilers/" if str(_COMPILERS_DIR) in asm_path else "system"
+            QMessageBox.information(
+                self, "Found",
+                f"Detected {asm_type} ({source}):\n{asm_path}",
+            )
         else:
             QMessageBox.warning(
                 self, "Not Found",
                 "No Microchip assembler found.\n\n"
-                "Searched for:\n"
-                "  • mpasmx.exe  (MPASM)\n"
-                "  • pic-as.exe  (XC8)\n"
-                "  • gpasm.exe   (gputils)\n\n"
-                "Please install one or browse manually.",
+                "Searched in:\n"
+                f"  1. Project:  {_COMPILERS_DIR}\n"
+                "  2. System:   Program Files\\Microchip\\...\n"
+                "  3. PATH\n\n"
+                "Place an assembler in compilers/ or browse manually.",
             )
 
     def get_result(self) -> tuple[str, str]:
