@@ -53,10 +53,14 @@ from PyQt5.QtWidgets import (
     QApplication,
     QComboBox,
     QCompleter,
+    QDialog,
+    QDialogButtonBox,
     QDockWidget,
     QFileDialog,
     QFileSystemModel,
     QFontDialog,
+    QGridLayout,
+    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QInputDialog,
@@ -68,6 +72,7 @@ from PyQt5.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QRadioButton,
     QSplitter,
     QStatusBar,
     QTabWidget,
@@ -96,6 +101,67 @@ else:
     _INSTRUCTIONS_DIR = _PROJECT_ROOT / "instructions"
     _TRANSLATOR = _PROJECT_ROOT / "pic18_translator.py"
     _REVERSE_TRANSLATOR = _PROJECT_ROOT / "pic18_reverse_translator.py"
+
+# ---------------------------------------------------------------------------
+# Microchip Assembler auto-detection
+# ---------------------------------------------------------------------------
+
+def _find_mpasmx() -> str | None:
+    """Search for mpasmx.exe (MPASM) in common Microchip install locations."""
+    candidates = [
+        # MPLAB X bundled MPASM
+        Path(r"C:\Program Files\Microchip\MPLABX"),
+        Path(r"C:\Program Files (x86)\Microchip\MPLABX"),
+        # Legacy MPLAB IDE 8.x
+        Path(r"C:\Program Files\Microchip\MPASM Suite"),
+        Path(r"C:\Program Files (x86)\Microchip\MPASM Suite"),
+    ]
+    for base in candidates:
+        if not base.exists():
+            continue
+        # Walk to find mpasmx.exe or mpasm.exe
+        for name in ("mpasmx.exe", "mpasm.exe"):
+            for hit in base.rglob(name):
+                return str(hit)
+    return None
+
+
+def _find_pic_as() -> str | None:
+    """Search for pic-as.exe (XC8 PIC Assembler) in common install locations."""
+    candidates = [
+        Path(r"C:\Program Files\Microchip\xc8"),
+        Path(r"C:\Program Files (x86)\Microchip\xc8"),
+    ]
+    for base in candidates:
+        if not base.exists():
+            continue
+        for hit in base.rglob("pic-as.exe"):
+            return str(hit)
+    return None
+
+
+def _find_gpasm() -> str | None:
+    """Search for gpasm.exe (open-source gputils assembler) on PATH."""
+    import shutil
+    path = shutil.which("gpasm")
+    return path if path else None
+
+
+def _auto_detect_assembler() -> tuple[str, str]:
+    """Auto-detect a PIC assembler. Returns (type, path) or ('none', '').
+
+    type is one of: 'mpasmx', 'pic-as', 'gpasm', 'none'.
+    """
+    p = _find_mpasmx()
+    if p:
+        return ("mpasmx", p)
+    p = _find_pic_as()
+    if p:
+        return ("pic-as", p)
+    p = _find_gpasm()
+    if p:
+        return ("gpasm", p)
+    return ("none", "")
 
 # ---------------------------------------------------------------------------
 # Load readable instruction names from JSON for syntax highlighting
@@ -589,6 +655,118 @@ class FindReplaceBar(QWidget):
 # Main IDE Window
 # ═══════════════════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Assembler Settings Dialog
+# ═══════════════════════════════════════════════════════════════════════════
+
+class AssemblerSettingsDialog(QDialog):
+    """Dialog for configuring the Microchip PIC assembler path."""
+
+    def __init__(self, parent=None, asm_type: str = "none", asm_path: str = ""):
+        super().__init__(parent)
+        self.setWindowTitle("Assembler Settings")
+        self.setMinimumWidth(560)
+
+        layout = QVBoxLayout(self)
+
+        # ─ Assembler type group ─
+        type_group = QGroupBox("Assembler")
+        type_layout = QVBoxLayout(type_group)
+
+        self._radio_mpasmx = QRadioButton("MPASM / mpasmx  (MPLAB IDE / MPLAB X bundled)")
+        self._radio_pic_as = QRadioButton("pic-as  (MPLAB XC8 PIC Assembler)")
+        self._radio_gpasm = QRadioButton("gpasm  (open-source gputils)")
+        self._radio_none = QRadioButton("None — assembler not configured")
+
+        type_layout.addWidget(self._radio_mpasmx)
+        type_layout.addWidget(self._radio_pic_as)
+        type_layout.addWidget(self._radio_gpasm)
+        type_layout.addWidget(self._radio_none)
+        layout.addWidget(type_group)
+
+        # Set current selection
+        radio_map = {
+            "mpasmx": self._radio_mpasmx,
+            "pic-as": self._radio_pic_as,
+            "gpasm": self._radio_gpasm,
+        }
+        radio_map.get(asm_type, self._radio_none).setChecked(True)
+
+        # ─ Path row ─
+        path_group = QGroupBox("Assembler Executable Path")
+        path_layout = QHBoxLayout(path_group)
+        self._path_edit = QLineEdit(asm_path)
+        self._path_edit.setPlaceholderText("e.g. C:\\Program Files\\Microchip\\MPLABX\\...\\mpasmx.exe")
+        path_layout.addWidget(self._path_edit)
+        btn_browse = QPushButton("Browse...")
+        btn_browse.clicked.connect(self._browse)
+        path_layout.addWidget(btn_browse)
+        btn_detect = QPushButton("Auto-Detect")
+        btn_detect.clicked.connect(self._auto_detect)
+        path_layout.addWidget(btn_detect)
+        layout.addWidget(path_group)
+
+        # ─ Buttons ─
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _browse(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select Assembler Executable", "",
+            "Executables (*.exe);;All Files (*)",
+        )
+        if path:
+            self._path_edit.setText(path)
+            # Auto-select radio based on filename
+            name = Path(path).name.lower()
+            if "mpasmx" in name or "mpasm" in name:
+                self._radio_mpasmx.setChecked(True)
+            elif "pic-as" in name:
+                self._radio_pic_as.setChecked(True)
+            elif "gpasm" in name:
+                self._radio_gpasm.setChecked(True)
+
+    def _auto_detect(self):
+        asm_type, asm_path = _auto_detect_assembler()
+        if asm_type != "none":
+            self._path_edit.setText(asm_path)
+            radio_map = {
+                "mpasmx": self._radio_mpasmx,
+                "pic-as": self._radio_pic_as,
+                "gpasm": self._radio_gpasm,
+            }
+            radio_map.get(asm_type, self._radio_none).setChecked(True)
+            QMessageBox.information(self, "Found", f"Detected {asm_type}:\n{asm_path}")
+        else:
+            QMessageBox.warning(
+                self, "Not Found",
+                "No Microchip assembler found.\n\n"
+                "Searched for:\n"
+                "  • mpasmx.exe  (MPASM)\n"
+                "  • pic-as.exe  (XC8)\n"
+                "  • gpasm.exe   (gputils)\n\n"
+                "Please install one or browse manually.",
+            )
+
+    def get_result(self) -> tuple[str, str]:
+        """Return (asm_type, asm_path)."""
+        if self._radio_mpasmx.isChecked():
+            t = "mpasmx"
+        elif self._radio_pic_as.isChecked():
+            t = "pic-as"
+        elif self._radio_gpasm.isChecked():
+            t = "gpasm"
+        else:
+            t = "none"
+        return (t, self._path_edit.text().strip())
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Main IDE Window
+# ═══════════════════════════════════════════════════════════════════════════
+
 class MplabIDE(QMainWindow):
     """Main IDE window modelled after MPLAB IDE v8.92."""
 
@@ -600,6 +778,19 @@ class MplabIDE(QMainWindow):
         self._file_paths: dict[int, str] = {}  # tab index → file path
         self._modified: dict[int, bool] = {}
         self._python = self._find_python()
+
+        # ── Assembler settings (persisted via QSettings) ──
+        self._settings = QSettings("PIC-RASM", "IDE")
+        self._asm_type = self._settings.value("assembler/type", "none")
+        self._asm_path = self._settings.value("assembler/path", "")
+        if self._asm_type == "none" or not self._asm_path:
+            # Try auto-detect on first launch
+            detected_type, detected_path = _auto_detect_assembler()
+            if detected_type != "none":
+                self._asm_type = detected_type
+                self._asm_path = detected_path
+                self._settings.setValue("assembler/type", self._asm_type)
+                self._settings.setValue("assembler/path", self._asm_path)
 
         self._init_central()
         self._init_project_tree()
@@ -891,6 +1082,21 @@ class MplabIDE(QMainWindow):
 
         tools_menu.addSeparator()
 
+        act_compile = tools_menu.addAction("&Compile .asm → .hex")
+        act_compile.setShortcut(QKeySequence("F8"))
+        act_compile.triggered.connect(self._compile_current)
+
+        act_build_all = tools_menu.addAction("Build &All (.rasm → .asm → .hex)")
+        act_build_all.setShortcut(QKeySequence("Ctrl+F8"))
+        act_build_all.triggered.connect(self._build_and_compile_current)
+
+        tools_menu.addSeparator()
+
+        act_asm_settings = tools_menu.addAction("Assembler &Settings...")
+        act_asm_settings.triggered.connect(self._assembler_settings)
+
+        tools_menu.addSeparator()
+
         act_ref = tools_menu.addAction("Instruction &Reference")
         act_ref.setShortcut(QKeySequence("F1"))
         act_ref.triggered.connect(self._show_reference)
@@ -928,6 +1134,9 @@ class MplabIDE(QMainWindow):
         tb.addSeparator()
         _add_btn("🔨", "Build — Translate (F7)", self._translate_current)
         _add_btn("🔄", "Reverse Translate (Shift+F7)", lambda: self._reverse_translate_current("en"))
+        tb.addSeparator()
+        _add_btn("⚙", "Compile .asm → .hex (F8)", self._compile_current)
+        _add_btn("🚀", "Build All: .rasm → .asm → .hex (Ctrl+F8)", self._build_and_compile_current)
         tb.addSeparator()
         _add_btn("🔍", "Find / Replace (Ctrl+F)", self._find_bar.show_find)
 
@@ -1224,6 +1433,201 @@ class MplabIDE(QMainWindow):
             self.output(f"Error: {e}")
         self.output("")
 
+    # ── assembler (compile .asm → .hex) ───────────────────────────────
+
+    def _assembler_settings(self):
+        """Open the assembler settings dialog."""
+        dlg = AssemblerSettingsDialog(self, self._asm_type, self._asm_path)
+        if dlg.exec_() == QDialog.Accepted:
+            self._asm_type, self._asm_path = dlg.get_result()
+            self._settings.setValue("assembler/type", self._asm_type)
+            self._settings.setValue("assembler/path", self._asm_path)
+            if self._asm_type != "none" and self._asm_path:
+                self.output(f"Assembler set: {self._asm_type} → {self._asm_path}")
+            else:
+                self.output("Assembler: not configured.")
+
+    def _check_assembler(self) -> bool:
+        """Verify that an assembler is configured. Prompt settings if not."""
+        if self._asm_type == "none" or not self._asm_path:
+            reply = QMessageBox.question(
+                self, "Assembler Not Configured",
+                "No Microchip PIC assembler is configured.\n\n"
+                "Would you like to configure it now?",
+                QMessageBox.Yes | QMessageBox.No,
+            )
+            if reply == QMessageBox.Yes:
+                self._assembler_settings()
+            return self._asm_type != "none" and bool(self._asm_path)
+        if not Path(self._asm_path).exists():
+            self.output(f"ERROR: Assembler not found at: {self._asm_path}")
+            self.output("Go to Tools → Assembler Settings to fix the path.")
+            return False
+        return True
+
+    def _build_asm_command(self, asm_file: str) -> list[str]:
+        """Build the command line for the configured assembler."""
+        asm_dir = str(Path(asm_file).parent)
+        asm_name = Path(asm_file).name
+
+        if self._asm_type == "mpasmx":
+            # MPASM: mpasmx.exe /q /o- /l- <file.asm>
+            #   /q  = quiet
+            #   /o- = no object file (just hex)
+            #   /l- = no listing file
+            return [self._asm_path, "/q", asm_name]
+
+        elif self._asm_type == "pic-as":
+            # XC8 pic-as: pic-as -o output.hex <file.asm>
+            hex_name = Path(asm_file).stem + ".hex"
+            return [self._asm_path, "-mcpu=PIC18F4550", "-o", hex_name, asm_name]
+
+        elif self._asm_type == "gpasm":
+            # gputils: gpasm -o file.hex file.asm
+            hex_name = Path(asm_file).stem + ".hex"
+            return [self._asm_path, "-o", hex_name, asm_name]
+
+        return []
+
+    def _compile_asm_file(self, asm_file: str) -> bool:
+        """Compile the given .asm file to .hex. Returns True on success."""
+        if not self._check_assembler():
+            return False
+
+        cmd = self._build_asm_command(asm_file)
+        if not cmd:
+            self.output("ERROR: Unknown assembler type.")
+            return False
+
+        asm_dir = str(Path(asm_file).parent)
+        self.output(f"Assembler: {self._asm_type}")
+        self.output(f"Command:   {' '.join(cmd)}")
+        self.output(f"Directory: {asm_dir}")
+        self.output("─" * 60)
+
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=60,
+                cwd=asm_dir,
+            )
+            if result.stdout:
+                self.output(result.stdout.strip())
+            if result.stderr:
+                self.output(result.stderr.strip())
+            if result.returncode == 0:
+                hex_file = Path(asm_file).with_suffix(".hex")
+                # Check for generated .hex (MPASM may name it differently)
+                err_file = Path(asm_file).with_suffix(".err")
+                if hex_file.exists():
+                    size = hex_file.stat().st_size
+                    self.output(f"Compile successful: {hex_file.name} ({size} bytes)")
+                else:
+                    self.output("Compile finished (exit code 0).")
+                # Show .err file contents if present (MPASM writes errors there)
+                if err_file.exists():
+                    err_text = err_file.read_text(encoding="utf-8", errors="replace").strip()
+                    if err_text:
+                        self.output("\n── Assembler Messages ──")
+                        self.output(err_text)
+                return True
+            else:
+                self.output(f"Compile FAILED (exit code {result.returncode}).")
+                # Show .err file if present
+                err_file = Path(asm_file).with_suffix(".err")
+                if err_file.exists():
+                    err_text = err_file.read_text(encoding="utf-8", errors="replace").strip()
+                    if err_text:
+                        self.output("\n── Assembler Errors ──")
+                        self.output(err_text)
+                return False
+        except FileNotFoundError:
+            self.output(f"ERROR: Assembler executable not found: {self._asm_path}")
+            self.output("Go to Tools → Assembler Settings to fix the path.")
+            return False
+        except subprocess.TimeoutExpired:
+            self.output("ERROR: Assembler timed out (60 s).")
+            return False
+        except Exception as e:
+            self.output(f"Compile error: {e}")
+            return False
+
+    def _compile_current(self):
+        """Compile current .asm file → .hex using the configured Microchip assembler."""
+        editor = self.current_editor()
+        if not editor:
+            self.output("No file open.")
+            return
+        fp = getattr(editor, "_filepath", "")
+        if not fp:
+            self.output("Save the file first.")
+            return
+        if not fp.lower().endswith(".asm"):
+            self.output(f"Compile expects a .asm file, got: {fp}")
+            return
+
+        idx = self._tabs.currentIndex()
+        self._save_file_at(idx)
+
+        self.output(f"Compiling: {fp}")
+        self.output("═" * 60)
+        self._compile_asm_file(fp)
+        self.output("")
+
+    def _build_and_compile_current(self):
+        """Full pipeline: .rasm → .asm → .hex."""
+        editor = self.current_editor()
+        if not editor:
+            self.output("No file open.")
+            return
+        fp = getattr(editor, "_filepath", "")
+        if not fp:
+            self.output("Save the file first.")
+            return
+
+        # Determine the starting file type
+        if fp.lower().endswith(".rasm"):
+            # Step 1: translate .rasm → .asm
+            idx = self._tabs.currentIndex()
+            self._save_file_at(idx)
+
+            asm_path = fp[:-5] + ".asm"
+            self.output("═" * 60)
+            self.output("  FULL BUILD: .rasm → .asm → .hex")
+            self.output("═" * 60)
+            self.output(f"\nStep 1: Translate {Path(fp).name} → {Path(asm_path).name}")
+            self.output("─" * 60)
+
+            try:
+                result = subprocess.run(
+                    [self._python, str(_TRANSLATOR), fp, "-o", asm_path],
+                    capture_output=True, text=True, timeout=30,
+                )
+                if result.stdout:
+                    self.output(result.stdout.strip())
+                if result.stderr:
+                    self.output(result.stderr.strip())
+                if result.returncode != 0:
+                    self.output(f"Translation failed (exit code {result.returncode}). Aborting.")
+                    self.output("")
+                    return
+                self.output("Translation successful.")
+            except Exception as e:
+                self.output(f"Translation error: {e}")
+                self.output("")
+                return
+
+            # Step 2: compile .asm → .hex
+            self.output(f"\nStep 2: Compile {Path(asm_path).name} → {Path(asm_path).stem}.hex")
+            self.output("─" * 60)
+            self._compile_asm_file(asm_path)
+            self.output("")
+
+        elif fp.lower().endswith(".asm"):
+            # Just compile
+            self._compile_current()
+        else:
+            self.output(f"Build All expects a .rasm or .asm file, got: {fp}")
+
     def _show_reference(self):
         """Show instruction reference in output."""
         self.output("=" * 60)
@@ -1254,8 +1658,11 @@ class MplabIDE(QMainWindow):
             "<ul>"
             "<li>Syntax highlighting for .rasm / .asm files</li>"
             "<li>Integrated forward &amp; reverse translator</li>"
+            "<li>Compile to .hex via Microchip MPASM / pic-as / gpasm</li>"
+            "<li>Full pipeline: .rasm → .asm → .hex</li>"
             "<li>Project tree, find/replace, line numbers</li>"
             "</ul>"
+            f"<p><b>Assembler:</b> {self._asm_type} — <code>{self._asm_path or 'not configured'}</code></p>"
             "<p>Built with PyQt5.</p>",
         )
 

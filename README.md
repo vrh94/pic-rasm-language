@@ -146,10 +146,13 @@ A standalone PyQt5 IDE modelled after MPLAB IDE v8.92 is included.
 ### Features
 
 - **Project tree** (left panel) — browse and open `.rasm` / `.asm` files
-- **Tabbed code editor** — syntax highlighting, line numbers, current-line highlight
-- **Output window** (bottom panel) — build output, errors
+- **Tabbed code editor** — syntax highlighting, line numbers, current-line highlight, inline autocomplete
+- **Output window** (bottom panel) — build output, assembler errors
 - **Integrated Build** — press **F7** to translate `.rasm → .asm`
 - **Integrated Reverse Translate** — press **Shift+F7** to convert `.asm → .rasm`
+- **Compile to HEX** — press **F8** to assemble `.asm → .hex` using the Microchip assembler
+- **Full Build Pipeline** — press **Ctrl+F8** to run `.rasm → .asm → .hex` in one step
+- **Assembler Settings** — auto-detects MPASM (mpasmx), XC8 (pic-as), or gpasm; configurable via Tools → Assembler Settings
 - **Find / Replace** (Ctrl+F), Go to Line (Ctrl+G)
 - Classic MPLAB grey/blue theme with Fusion style
 
@@ -174,6 +177,33 @@ pyinstaller --noconfirm --onefile --windowed --name PIC_RASM_IDE \
   --add-data "pic18_reverse_translator.py;." \
   ide/pic_rasm_ide.py
 ```
+
+---
+
+## Microchip Assembler Integration
+
+The IDE can compile `.asm` files to `.hex` using an official Microchip PIC assembler. Three assemblers are supported:
+
+| Assembler | Executable | Source |
+|---|---|---|
+| **MPASM** | `mpasmx.exe` / `mpasm.exe` | Bundled with MPLAB IDE v8.x or MPLAB X |
+| **XC8 pic-as** | `pic-as.exe` | Part of MPLAB XC8 compiler |
+| **gpasm** | `gpasm.exe` | Open-source [gputils](https://gputils.sourceforge.io/) |
+
+### Setup
+
+On first launch the IDE auto-detects installed assemblers by scanning common Microchip install directories. If none is found, go to **Tools → Assembler Settings** to browse for the executable manually.
+
+The setting is persisted across sessions.
+
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|---|---|
+| **F7** | Translate `.rasm → .asm` |
+| **Shift+F7** | Reverse translate `.asm → .rasm` (English) |
+| **F8** | Compile `.asm → .hex` |
+| **Ctrl+F8** | Full build: `.rasm → .asm → .hex` |
 
 ---
 
