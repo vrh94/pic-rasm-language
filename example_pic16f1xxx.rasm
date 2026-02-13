@@ -1,0 +1,89 @@
+; ============================================================
+; PIC16F1xxx Readable Assembly — Enhanced Mid-Range Demo
+; ============================================================
+; Demonstrates PIC16 enhanced mid-range instructions.
+; Target: PIC16F1847 or similar PIC16F1xxx device.
+; ============================================================
+
+    LIST P=16F1847
+    #include <p16f1847.inc>
+
+; ── Configuration bits ──────────────────────────────────────
+    __CONFIG _CONFIG1, _FOSC_INTOSC & _WDTE_OFF & _PWRTE_ON
+    __CONFIG _CONFIG2, _LVP_OFF & _PLLEN_ON
+
+; ── Variables ───────────────────────────────────────────────
+    CBLOCK 0x20
+        TEMP
+        RESULT
+        SHIFT_VAL
+    ENDC
+
+; ── Reset vector ────────────────────────────────────────────
+    ORG 0x0000
+    goto_address MAIN
+
+; ── Interrupt vector ────────────────────────────────────────
+    ORG 0x0004
+    return_from_interrupt
+
+; ── Main Program ────────────────────────────────────────────
+    ORG 0x0010
+MAIN:
+    ; Use MOVLB to set bank (enhanced mid-range)
+    move_literal_to_bsr_16 0x01         ; select bank 1
+
+    ; Configure PORTB as outputs
+    clear_f TRISB
+
+    ; Back to bank 0
+    move_literal_to_bsr_16 0x00
+
+    ; Clear PORTB
+    clear_f PORTB
+
+    ; ── Shift operations demo ───────────────────────────────
+    move_literal_to_w 0b10110100
+    move_w_to_f SHIFT_VAL
+
+    logical_shift_left_f SHIFT_VAL, F   ; shift left (0 into LSB)
+    logical_shift_right_f SHIFT_VAL, F  ; shift right (0 into MSB)
+    arithmetic_shift_right_f SHIFT_VAL, F ; arithmetic shift right (sign extend)
+
+    ; ── Indirect addressing with FSR (enhanced) ─────────────
+    ; Point FSR0 to TEMP
+    move_literal_to_w TEMP
+    move_w_to_f FSR0L
+    clear_f FSR0H
+
+    ; Store value via indirect
+    move_literal_to_w 0x42
+    move_w_indirect_to_fsr FSR0         ; MOVWI — store W at [FSR0]
+
+    ; Read back via indirect
+    move_indirect_from_fsr FSR0         ; MOVIW — load [FSR0] into W
+
+    ; ── Relative branch demo ────────────────────────────────
+    move_literal_to_w 0x00
+    branch_relative SKIP_OVER           ; BRA — relative branch
+    no_operation                        ; this is skipped
+SKIP_OVER:
+    no_operation
+
+    ; ── Computed jump using BRW ─────────────────────────────
+    move_literal_to_w 0x02
+    branch_relative_with_w              ; BRW — jump PC + W
+    no_operation                        ; W=0 lands here
+    no_operation                        ; W=1 lands here
+    goto_address DONE                   ; W=2 lands here
+
+DONE:
+    ; ── MOVLP demo ──────────────────────────────────────────
+    move_literal_to_pclath 0x00         ; set PCLATH
+
+    ; Adjust FSR using ADDFSR
+    add_literal_to_fsr_16 FSR0, 4      ; FSR0 += 4
+
+    enter_sleep_mode
+
+    END

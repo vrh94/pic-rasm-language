@@ -1,7 +1,7 @@
 {
     "name": "pic18-readable-asm",
-    "displayName": "PIC18 Readable Assembly",
-    "description": "Syntax highlighting for PIC18 readable assembly (.rasm) — English & Slovenian mnemonics",
+    "displayName": "PIC16/PIC18 Readable Assembly",
+    "description": "Syntax highlighting for PIC16/PIC18 readable assembly (.rasm) — English & Slovenian mnemonics",
     "version": "1.0.0",
     "publisher": "local",
     "engines": {

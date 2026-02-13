@@ -1,6 +1,6 @@
 {
     "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-    "name": "PIC18 Readable Assembly",
+    "name": "PIC16/PIC18 Readable Assembly",
     "scopeName": "source.pic18rasm",
     "patterns": [
         { "include": "#comments" },
@@ -9,6 +9,8 @@
         { "include": "#numbers" },
         { "include": "#instructions_en" },
         { "include": "#instructions_si" },
+        { "include": "#instructions_pic16_en" },
+        { "include": "#instructions_pic16_si" },
         { "include": "#directives" },
         { "include": "#registers" },
         { "include": "#operators" },
@@ -156,6 +158,34 @@
                     "comment": "Razsirjeni nabor ukazov (SI)",
                     "name": "keyword.mnemonic.extended.pic18rasm",
                     "match": "(?i)\\b(pristej_konstanto_k_fsr2_in_vrni|pristej_konstanto_k_fsr|klici_podprogram_z_w|premakni_indeksirano_v_indeksirano|premakni_indeksirano_v_f|potisni_konstanto|odstej_konstanto_od_fsr2_in_vrni|odstej_konstanto_od_fsr)\\b"
+                }
+            ]
+        },
+        "instructions_pic16_en": {
+            "patterns": [
+                {
+                    "comment": "PIC16 base set (EN)",
+                    "name": "keyword.mnemonic.byte.pic18rasm",
+                    "match": "(?i)\\b(clear_w|rotate_left_f|rotate_right_f|option_load|load_tris)\\b"
+                },
+                {
+                    "comment": "PIC16 enhanced mid-range (EN)",
+                    "name": "keyword.mnemonic.enhanced.pic18rasm",
+                    "match": "(?i)\\b(add_w_to_f_with_carry_16|subtract_w_from_f_with_borrow_16|logical_shift_left_f|logical_shift_right_f|arithmetic_shift_right_f|branch_relative_with_w|branch_relative|call_subroutine_with_w|add_literal_to_fsr_16|move_indirect_from_fsr|move_w_indirect_to_fsr|move_literal_to_bsr_16|move_literal_to_pclath|software_reset_16)\\b"
+                }
+            ]
+        },
+        "instructions_pic16_si": {
+            "patterns": [
+                {
+                    "comment": "PIC16 osnovna (SI)",
+                    "name": "keyword.mnemonic.byte.pic18rasm",
+                    "match": "(?i)\\b(pocisti_w|zavrti_levo_f|zavrti_desno_f|nalozi_opcijo|nalozi_tris)\\b"
+                },
+                {
+                    "comment": "PIC16 razsirjeni srednji razred (SI)",
+                    "name": "keyword.mnemonic.enhanced.pic18rasm",
+                    "match": "(?i)\\b(pristej_w_k_f_s_prenosom_16|odstej_w_od_f_z_izposojo_16|logicni_pomik_levo_f|logicni_pomik_desno_f|aritmeticni_pomik_desno_f|vejitev_relativna_z_w|vejitev_relativna|klici_podprogram_z_w_16|pristej_konstanto_k_fsr_16|premakni_posredno_iz_fsr|premakni_w_posredno_v_fsr|premakni_konstanto_v_bsr_16|premakni_konstanto_v_pclath|programska_ponastavitev_16)\\b"
                 }
             ]
         },

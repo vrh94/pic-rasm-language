@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 """
-PIC18 Readable Assembly Translator
-===================================
-Translates human-readable PIC18 assembly mnemonics into standard PIC18 assembly.
+PIC Readable Assembly Translator  (PIC16 + PIC18)
+===================================================
+Translates human-readable PIC assembly mnemonics into standard Microchip
+assembly that can be assembled by MPASM / MPLAB XC8 PIC Assembler.
+
+Supports:
+  - PIC18 full instruction set (75 instructions incl. XINST)
+  - PIC16 mid-range instruction set (35 base instructions)
+  - PIC16 enhanced mid-range additions (16 instructions, PIC16F1xxx)
+  - English and Slovenian readable names (can be mixed)
 
 Usage:
     python pic18_translator.py input.rasm [-o output.asm]
@@ -122,7 +129,72 @@ INSTRUCTION_MAP: dict[str, str] = {
 }
 
 # =============================================================================
-# SLOVENIAN (SI) readable names → standard mnemonic
+# PIC16 MID-RANGE INSTRUCTION SET — readable name → standard mnemonic (EN)
+# =============================================================================
+# Instructions shared with PIC18 (ADDWF, ANDWF, BCF, etc.) reuse the same
+# readable names above.  Only PIC16-specific instructions are listed here.
+#
+# Sources:
+#   Microchip PIC16F mid-range reference manual (DS33023)
+#   PIC16(L)F1xxx enhanced mid-range reference
+
+INSTRUCTION_MAP_PIC16: dict[str, str] = {
+
+    # ── PIC16 base set — unique to PIC16 ────────────────────────────────
+    "clear_w":                          "CLRW",        # Clear W
+    "rotate_left_f":                    "RLF",         # Rotate left f through carry
+    "rotate_right_f":                   "RRF",         # Rotate right f through carry
+    "option_load":                      "OPTION",      # Load OPTION register (legacy)
+    "load_tris":                        "TRIS",        # Load TRIS register (legacy)
+
+    # ── PIC16 enhanced mid-range additions (PIC16F1xxx) ─────────────────
+    "add_w_to_f_with_carry_16":         "ADDWFC",      # Add with carry
+    "subtract_w_from_f_with_borrow_16": "SUBWFB",      # Subtract with borrow
+    "logical_shift_left_f":             "LSLF",        # Logical shift left
+    "logical_shift_right_f":            "LSRF",        # Logical shift right
+    "arithmetic_shift_right_f":         "ASRF",        # Arithmetic shift right
+    "branch_relative":                  "BRA",         # Relative branch
+    "branch_relative_with_w":           "BRW",         # Relative branch using W
+    "call_subroutine_with_w":           "CALLW",       # Call using W as low address
+    "add_literal_to_fsr_16":            "ADDFSR",      # Add literal to FSRn
+    "move_indirect_from_fsr":           "MOVIW",       # Move indirect (FSR) to W
+    "move_w_indirect_to_fsr":           "MOVWI",       # Move W to indirect (FSR)
+    "move_literal_to_bsr_16":           "MOVLB",       # Move literal to BSR
+    "move_literal_to_pclath":           "MOVLP",       # Move literal to PCLATH
+    "software_reset_16":                "RESET",       # Software device reset
+}
+
+# =============================================================================
+# PIC16 MID-RANGE — Slovenian readable names
+# =============================================================================
+INSTRUCTION_MAP_PIC16_SI: dict[str, str] = {
+
+    # ── PIC16 osnovna — samo PIC16 ──────────────────────────────────────
+    "pocisti_w":                         "CLRW",
+    "zavrti_levo_f":                     "RLF",
+    "zavrti_desno_f":                    "RRF",
+    "nalozi_opcijo":                     "OPTION",
+    "nalozi_tris":                       "TRIS",
+
+    # ── PIC16 razširjeni srednji razred (PIC16F1xxx) ────────────────────
+    "pristej_w_k_f_s_prenosom_16":       "ADDWFC",
+    "odstej_w_od_f_z_izposojo_16":       "SUBWFB",
+    "logicni_pomik_levo_f":              "LSLF",
+    "logicni_pomik_desno_f":             "LSRF",
+    "aritmeticni_pomik_desno_f":         "ASRF",
+    "vejitev_relativna":                 "BRA",
+    "vejitev_relativna_z_w":             "BRW",
+    "klici_podprogram_z_w_16":           "CALLW",
+    "pristej_konstanto_k_fsr_16":        "ADDFSR",
+    "premakni_posredno_iz_fsr":          "MOVIW",
+    "premakni_w_posredno_v_fsr":         "MOVWI",
+    "premakni_konstanto_v_bsr_16":       "MOVLB",
+    "premakni_konstanto_v_pclath":       "MOVLP",
+    "programska_ponastavitev_16":        "RESET",
+}
+
+# =============================================================================
+# SLOVENIAN (SI) readable names → standard mnemonic  (PIC18)
 # =============================================================================
 INSTRUCTION_MAP_SI: dict[str, str] = {
 
@@ -222,9 +294,14 @@ INSTRUCTION_MAP_SI: dict[str, str] = {
 }
 
 # =============================================================================
-# Merged map: both English and Slovenian readable names → standard mnemonic
+# Merged map: all readable names (PIC18 EN/SI + PIC16 EN/SI) → standard mnemonic
 # =============================================================================
-INSTRUCTION_MAP_ALL: dict[str, str] = {**INSTRUCTION_MAP, **INSTRUCTION_MAP_SI}
+INSTRUCTION_MAP_ALL: dict[str, str] = {
+    **INSTRUCTION_MAP,
+    **INSTRUCTION_MAP_SI,
+    **INSTRUCTION_MAP_PIC16,
+    **INSTRUCTION_MAP_PIC16_SI,
+}
 
 # Build reverse map (standard → readable) for reference / future use
 REVERSE_MAP: dict[str, str] = {v: k for k, v in INSTRUCTION_MAP.items()}
@@ -240,7 +317,7 @@ _MNEMONIC_RE = re.compile(
 
 
 def translate_line(line: str) -> str:
-    """Translate one source line from readable assembly to standard PIC18 asm.
+    """Translate one source line from readable assembly to standard PIC asm.
 
     Rules:
     - Lines starting with ';' are pure comments → pass through.
@@ -267,7 +344,7 @@ def translate_line(line: str) -> str:
 
 
 def translate(source: str) -> str:
-    """Translate a full readable-assembly source string to PIC18 assembly."""
+    """Translate a full readable-assembly source string to standard PIC assembly."""
     return "\n".join(translate_line(line) for line in source.splitlines())
 
 
@@ -397,6 +474,40 @@ def print_instruction_reference() -> None:
         out.write("\n")
         out.flush()
 
+    # ── PIC16 English categories ─────────────────────────────────────────
+    categories_pic16_en = {
+        "PIC16 base set (unique to PIC16)": [
+            "clear_w", "rotate_left_f", "rotate_right_f",
+            "option_load", "load_tris",
+        ],
+        "PIC16 enhanced mid-range (PIC16F1xxx)": [
+            "add_w_to_f_with_carry_16", "subtract_w_from_f_with_borrow_16",
+            "logical_shift_left_f", "logical_shift_right_f",
+            "arithmetic_shift_right_f", "branch_relative",
+            "branch_relative_with_w", "call_subroutine_with_w",
+            "add_literal_to_fsr_16", "move_indirect_from_fsr",
+            "move_w_indirect_to_fsr", "move_literal_to_bsr_16",
+            "move_literal_to_pclath", "software_reset_16",
+        ],
+    }
+
+    # ── PIC16 Slovenian categories ──────────────────────────────────────
+    categories_pic16_si = {
+        "PIC16 osnovna (samo PIC16)": [
+            "pocisti_w", "zavrti_levo_f", "zavrti_desno_f",
+            "nalozi_opcijo", "nalozi_tris",
+        ],
+        "PIC16 razsirjeni srednji razred (PIC16F1xxx)": [
+            "pristej_w_k_f_s_prenosom_16", "odstej_w_od_f_z_izposojo_16",
+            "logicni_pomik_levo_f", "logicni_pomik_desno_f",
+            "aritmeticni_pomik_desno_f", "vejitev_relativna",
+            "vejitev_relativna_z_w", "klici_podprogram_z_w_16",
+            "pristej_konstanto_k_fsr_16", "premakni_posredno_iz_fsr",
+            "premakni_w_posredno_v_fsr", "premakni_konstanto_v_bsr_16",
+            "premakni_konstanto_v_pclath", "programska_ponastavitev_16",
+        ],
+    }
+
     _print_section(
         "PIC18 READABLE ASSEMBLY — INSTRUCTION REFERENCE (ENGLISH)",
         categories_en,
@@ -407,12 +518,22 @@ def print_instruction_reference() -> None:
         categories_si,
         INSTRUCTION_MAP_SI,
     )
+    _print_section(
+        "PIC16 READABLE ASSEMBLY — INSTRUCTION REFERENCE (ENGLISH)",
+        categories_pic16_en,
+        INSTRUCTION_MAP_PIC16,
+    )
+    _print_section(
+        "PIC16 BERLJIV ZBIRNIK — SEZNAM UKAZOV (SLOVENŠČINA)",
+        categories_pic16_si,
+        INSTRUCTION_MAP_PIC16_SI,
+    )
 
 
 # ── CLI ─────────────────────────────────────────────────────────────────
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Translate readable PIC18 assembly (.rasm) to standard PIC18 assembly.",
+        description="Translate readable PIC16/PIC18 assembly (.rasm) to standard PIC assembly.",
     )
     parser.add_argument(
         "input",

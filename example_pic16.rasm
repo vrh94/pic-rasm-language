@@ -1,0 +1,97 @@
+; ============================================================
+; PIC16 Readable Assembly Example — LED Blink on PIC16F877A
+; ============================================================
+; This .rasm file demonstrates readable PIC16 syntax.
+; Run through pic18_translator.py to get standard PIC16 asm.
+; ============================================================
+
+    LIST P=16F877A
+    #include <p16f877a.inc>
+
+; ── Configuration bits ──────────────────────────────────────
+    __CONFIG _FOSC_HS & _WDTE_OFF & _PWRTE_ON & _LVP_OFF
+
+; ── Variables ───────────────────────────────────────────────
+    CBLOCK 0x20
+        DELAY_COUNT1
+        DELAY_COUNT2
+        DELAY_COUNT3
+    ENDC
+
+; ── Reset vector ────────────────────────────────────────────
+    ORG 0x0000
+    goto_address MAIN
+
+; ── Interrupt vector (unused) ───────────────────────────────
+    ORG 0x0004
+    return_from_interrupt
+
+; ── Main Program ────────────────────────────────────────────
+    ORG 0x0010
+MAIN:
+    ; Select bank 1 for TRISB
+    bit_set_f STATUS, RP0
+    bit_clear_f STATUS, RP1
+
+    ; Configure PORTB as all outputs
+    clear_f TRISB
+
+    ; Back to bank 0
+    bit_clear_f STATUS, RP0
+
+    ; Clear PORTB (all LEDs off)
+    clear_f PORTB
+
+LOOP:
+    ; Toggle all LEDs on PORTB
+    complement_f PORTB, F
+
+    ; Delay
+    call_subroutine DELAY
+
+    ; Repeat forever
+    goto_address LOOP
+
+; ── Delay subroutine ────────────────────────────────────────
+DELAY:
+    move_literal_to_w 0x05
+    move_w_to_f DELAY_COUNT3
+DELAY_OUTER:
+    move_literal_to_w 0xFF
+    move_w_to_f DELAY_COUNT2
+DELAY_MIDDLE:
+    move_literal_to_w 0xFF
+    move_w_to_f DELAY_COUNT1
+DELAY_INNER:
+    decrement_f_skip_if_zero DELAY_COUNT1, F
+    goto_address DELAY_INNER
+
+    decrement_f_skip_if_zero DELAY_COUNT2, F
+    goto_address DELAY_MIDDLE
+
+    decrement_f_skip_if_zero DELAY_COUNT3, F
+    goto_address DELAY_OUTER
+
+    return_from_subroutine
+
+; ── Arithmetic demo ─────────────────────────────────────────
+ARITH_DEMO:
+    move_literal_to_w 0x0A          ; W = 10
+    add_literal_to_w 0x05           ; W = W + 5  = 15
+    move_w_to_f 0x30                ; store result
+
+    ; Rotate operations (PIC16 style)
+    rotate_left_f 0x30, F           ; rotate left through carry
+    rotate_right_f 0x30, F          ; rotate right through carry
+
+    ; Bit manipulation
+    bit_set_f 0x30, 7               ; set bit 7
+    bit_toggle_f 0x30, 3            ; toggle bit 3
+    bit_test_f_skip_if_set 0x30, 7
+    goto_address SKIP_TARGET
+
+SKIP_TARGET:
+    no_operation
+    return_from_subroutine
+
+    END

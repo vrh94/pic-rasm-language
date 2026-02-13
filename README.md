@@ -1,8 +1,8 @@
-# PIC18 Readable Assembly
+# PIC16/PIC18 Readable Assembly
 
-Write PIC18 assembly code using **human-readable instruction names** instead of cryptic mnemonics — in **English** or **Slovenian**.
+Write PIC16 and PIC18 assembly code using **human-readable instruction names** instead of cryptic mnemonics — in **English** or **Slovenian**.
 
-Instead of:
+**PIC18 example** — instead of:
 
 ```asm
 MOVLW 0x05
@@ -20,6 +20,24 @@ decrement_f_skip_if_zero DELAY_COUNT, F, ACCESS
 branch_always LOOP
 ```
 
+**PIC16 example** — instead of:
+
+```asm
+CLRW
+RLF PORTB, F
+BTFSS STATUS, Z
+GOTO LOOP
+```
+
+You write:
+
+```
+clear_w
+rotate_left_f PORTB, F
+bit_test_f_skip_if_set STATUS, Z
+goto_address LOOP
+```
+
 Or in **Slovenian**:
 
 ```
@@ -35,12 +53,14 @@ vejitev_vedno ZANKA
 
 ```
 PIC18_redable_assembly_code/
-├── pic18_translator.py           # Readable .rasm → standard .asm
-├── pic18_reverse_translator.py   # Standard .asm → readable .rasm
-├── example.rasm                  # English example (LED blink)
+├── pic18_translator.py           # Readable .rasm → standard .asm (PIC16 + PIC18)
+├── pic18_reverse_translator.py   # Standard .asm → readable .rasm (PIC16 + PIC18)
+├── example.rasm                  # PIC18 English example (LED blink)
 ├── example.asm                   # Translated output
-├── primer.rasm                   # Slovenian example (LED blink)
+├── primer.rasm                   # PIC18 Slovenian example (LED blink)
 ├── primer.asm                    # Translated output
+├── example_pic16.rasm            # PIC16 mid-range example (LED blink)
+├── example_pic16f1xxx.rasm       # PIC16 enhanced mid-range example (shifts, FSR)
 ├── pic18-readable-asm/           # VS Code extension for syntax highlighting
 │   ├── package.json
 │   ├── language-configuration.json
@@ -62,7 +82,7 @@ PIC18_redable_assembly_code/
 
 ### Forward Translation: `.rasm` → `.asm`
 
-Convert readable assembly to standard PIC18 assembly that can be assembled by MPASM / MPLAB XC8 PIC Assembler.
+Convert readable assembly to standard PIC16/PIC18 assembly that can be assembled by MPASM / MPLAB XC8 PIC Assembler.
 
 ```bash
 # Output to file
@@ -71,13 +91,13 @@ python pic18_translator.py input.rasm -o output.asm
 # Output to stdout
 python pic18_translator.py input.rasm
 
-# Print the full instruction reference table (English + Slovenian)
+# Print the full instruction reference table (PIC18 + PIC16, EN + SI)
 python pic18_translator.py --ref
 ```
 
 ### Reverse Translation: `.asm` → `.rasm`
 
-Convert existing standard PIC18 assembly into readable format.
+Convert existing standard PIC16/PIC18 assembly into readable format.
 
 ```bash
 # To English readable names (default)
@@ -116,7 +136,7 @@ The `pic18-readable-asm/` folder is a VS Code extension that provides syntax hig
 
 ### Features
 
-- All English and Slovenian readable mnemonics highlighted as **keywords**
+- All English and Slovenian readable mnemonics highlighted as **keywords** (PIC16 + PIC18)
 - Labels, comments (`;`), numbers (hex `0x`, binary `0b`, decimal), strings highlighted
 - Assembler directives (`ORG`, `EQU`, `CONFIG`, `#include`, etc.) highlighted
 - Bracket matching and auto-closing for `()`, `[]`, `<>`, `""`
@@ -125,9 +145,13 @@ The `pic18-readable-asm/` folder is a VS Code extension that provides syntax hig
 
 ## Complete Instruction Reference
 
-All 75 PIC18 instructions (including 8 extended XINST instructions) are supported. Both English and Slovenian names can be **mixed freely** in a single `.rasm` file.
+All 75 PIC18 instructions (including 8 extended XINST) plus 19 PIC16-specific instructions are supported. Both English and Slovenian names can be **mixed freely** in a single `.rasm` file. Many instructions (ADDWF, BCF, GOTO, etc.) are shared between PIC16 and PIC18 and use the same readable names.
 
-### Byte-Oriented File Register Operations (31)
+---
+
+### PIC18 Instructions
+
+#### Byte-Oriented File Register Operations (31)
 
 | PIC18 Mnemonic | English Readable Name | Slovenian Readable Name |
 |---|---|---|
@@ -163,7 +187,7 @@ All 75 PIC18 instructions (including 8 extended XINST instructions) are supporte
 | `TSTFSZ` | `test_f_skip_if_zero` | `testiraj_f_preskoci_ce_nic` |
 | `XORWF` | `xor_w_with_f` | `xali_w_z_f` |
 
-### Bit-Oriented File Register Operations (5)
+#### Bit-Oriented File Register Operations (5)
 
 | PIC18 Mnemonic | English Readable Name | Slovenian Readable Name |
 |---|---|---|
@@ -173,7 +197,7 @@ All 75 PIC18 instructions (including 8 extended XINST instructions) are supporte
 | `BTFSS` | `bit_test_f_skip_if_set` | `bit_testiraj_f_preskoci_ce_nastavljen` |
 | `BTG` | `bit_toggle_f` | `bit_preklopi_f` |
 
-### Literal Operations (8)
+#### Literal Operations (8)
 
 | PIC18 Mnemonic | English Readable Name | Slovenian Readable Name |
 |---|---|---|
@@ -186,7 +210,7 @@ All 75 PIC18 instructions (including 8 extended XINST instructions) are supporte
 | `SUBLW` | `subtract_w_from_literal` | `odstej_w_od_konstante` |
 | `XORLW` | `xor_literal_with_w` | `xali_konstanto_z_w` |
 
-### Control / Branch Operations (22)
+#### Control / Branch Operations (22)
 
 | PIC18 Mnemonic | English Readable Name | Slovenian Readable Name |
 |---|---|---|
@@ -213,7 +237,7 @@ All 75 PIC18 instructions (including 8 extended XINST instructions) are supporte
 | `RETURN` | `return_from_subroutine` | `vrni_se_iz_podprograma` |
 | `SLEEP` | `enter_sleep_mode` | `vstopi_v_spanje` |
 
-### Table Read / Write Operations (8)
+#### Table Read / Write Operations (8)
 
 | PIC18 Mnemonic | English Readable Name | Slovenian Readable Name |
 |---|---|---|
@@ -226,7 +250,7 @@ All 75 PIC18 instructions (including 8 extended XINST instructions) are supporte
 | `TBLWT*-` | `table_write_post_decrement` | `pisi_tabelo_zmanjsaj_po` |
 | `TBLWT+*` | `table_write_pre_increment` | `pisi_tabelo_povecaj_pred` |
 
-### Extended Instruction Set — XINST (8)
+#### Extended Instruction Set — XINST (8)
 
 | PIC18 Mnemonic | English Readable Name | Slovenian Readable Name |
 |---|---|---|
@@ -239,20 +263,58 @@ All 75 PIC18 instructions (including 8 extended XINST instructions) are supporte
 | `SUBFSR` | `subtract_literal_from_fsr` | `odstej_konstanto_od_fsr` |
 | `SUBULNK` | `subtract_literal_from_fsr2_and_return` | `odstej_konstanto_od_fsr2_in_vrni` |
 
+### PIC16 Instructions
+
+#### PIC16 Base Set — Unique to PIC16 (5)
+
+These instructions exist only in the PIC16 mid-range instruction set and have no PIC18 equivalent.
+
+| PIC16 Mnemonic | English Readable Name | Slovenian Readable Name |
+|---|---|---|
+| `CLRW` | `clear_w` | `pocisti_w` |
+| `RLF` | `rotate_left_f` | `zavrti_levo_f` |
+| `RRF` | `rotate_right_f` | `zavrti_desno_f` |
+| `OPTION` | `option_load` | `nalozi_opcijo` |
+| `TRIS` | `load_tris` | `nalozi_tris` |
+
+#### PIC16 Enhanced Mid-Range — PIC16F1xxx (14)
+
+These instructions were added in the enhanced mid-range PIC16F1xxx family. Some share mnemonics with PIC18 (ADDWFC, SUBWFB, BRA, CALLW, ADDFSR, MOVLB, RESET); the PIC16 variants use a `_16` suffix to distinguish them.
+
+| PIC16 Mnemonic | English Readable Name | Slovenian Readable Name |
+|---|---|---|
+| `ADDWFC` | `add_w_to_f_with_carry_16` | `pristej_w_k_f_s_prenosom_16` |
+| `SUBWFB` | `subtract_w_from_f_with_borrow_16` | `odstej_w_od_f_z_izposojo_16` |
+| `LSLF` | `logical_shift_left_f` | `logicni_pomik_levo_f` |
+| `LSRF` | `logical_shift_right_f` | `logicni_pomik_desno_f` |
+| `ASRF` | `arithmetic_shift_right_f` | `aritmeticni_pomik_desno_f` |
+| `BRA` | `branch_relative` | `vejitev_relativna` |
+| `BRW` | `branch_relative_with_w` | `vejitev_relativna_z_w` |
+| `CALLW` | `call_subroutine_with_w` | `klici_podprogram_z_w_16` |
+| `ADDFSR` | `add_literal_to_fsr_16` | `pristej_konstanto_k_fsr_16` |
+| `MOVIW` | `move_indirect_from_fsr` | `premakni_posredno_iz_fsr` |
+| `MOVWI` | `move_w_indirect_to_fsr` | `premakni_w_posredno_v_fsr` |
+| `MOVLB` | `move_literal_to_bsr_16` | `premakni_konstanto_v_bsr_16` |
+| `MOVLP` | `move_literal_to_pclath` | `premakni_konstanto_v_pclath` |
+| `RESET` | `software_reset_16` | `programska_ponastavitev_16` |
+
+> **Note:** PIC16 and PIC18 share many instructions (ADDWF, ANDWF, BCF, BSF, CALL, GOTO, MOVLW, etc.). These shared instructions use the **same readable names** listed in the PIC18 tables above, so no duplication is needed. Use them freely in PIC16 `.rasm` files.
+
 ---
 
 ## Writing `.rasm` Files
 
 ### Basic Rules
 
-1. **One instruction per line** — same as standard PIC18 assembly.
-2. **Operands are unchanged** — register names, literals, `ACCESS`/`BANKED`, `W`/`F` are written exactly as in standard PIC18 asm.
+1. **One instruction per line** — same as standard PIC16/PIC18 assembly.
+2. **Operands are unchanged** — register names, literals, `ACCESS`/`BANKED`, `W`/`F` are written exactly as in standard asm.
 3. **Labels** end with `:` and go at the start of a line (e.g. `MAIN:`).
 4. **Comments** start with `;` — they are preserved through translation.
 5. **Directives** (`ORG`, `EQU`, `CONFIG`, `#include`, `LIST`, `DB`, `END`, etc.) are passed through unchanged.
 6. **English and Slovenian names can be mixed** in the same file.
+7. **PIC16 and PIC18 instructions can be mixed** — the translator handles both.
 
-### Example
+### PIC18 Example
 
 ```
 ; Reset vector
@@ -272,23 +334,24 @@ LOOP:
     branch_always LOOP              ; repeat
 ```
 
-Translates to:
+### PIC16 Example
 
-```asm
+```
+    LIST p=16F877A
     ORG 0x0000
-    GOTO MAIN
 
 MAIN:
-    MOVLB 0
-    CLRF TRISB, ACCESS
-    CLRF LATB, ACCESS
+    bit_clear_f STATUS, RP0         ; bank 0
+    clear_f TRISB                   ; PORTB = output
 
 LOOP:
-    BSF LATB, 0, ACCESS
-    CALL DELAY, 0
-    BCF LATB, 0, ACCESS
-    CALL DELAY, 0
-    BRA LOOP
+    move_literal_to_w 0xFF
+    move_w_to_f PORTB               ; all LEDs on
+    call_subroutine DELAY
+    clear_w
+    move_w_to_f PORTB               ; all LEDs off
+    call_subroutine DELAY
+    goto_address LOOP
 ```
 
 ---
@@ -297,6 +360,8 @@ LOOP:
 
 - Microchip PIC18F instruction set reference (DS39500)
 - PIC18 Extended Instruction Set (XINST) documentation
+- Microchip PIC16 mid-range MCU instruction set (DS33023)
+- PIC16F1xxx enhanced mid-range reference (DS40001239)
 
 ---
 

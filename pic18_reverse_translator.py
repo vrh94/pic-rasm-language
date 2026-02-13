@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-PIC18 Reverse Translator
-=========================
-Converts standard PIC18 assembly (.asm) back into human-readable assembly (.rasm).
+PIC Reverse Translator  (PIC16 + PIC18)
+========================================
+Converts standard PIC16/PIC18 assembly (.asm) back into human-readable
+assembly (.rasm).
 
 Supports two target languages:
   --lang en   →  English readable names   (default)
@@ -119,6 +120,25 @@ REVERSE_MAP_EN: dict[str, str] = {
 }
 
 # =============================================================================
+# PIC16-only standard mnemonic → English readable name
+# =============================================================================
+REVERSE_MAP_PIC16_EN: dict[str, str] = {
+    "CLRW":     "clear_w",
+    "RLF":      "rotate_left_f",
+    "RRF":      "rotate_right_f",
+    "OPTION":   "option_load",
+    "TRIS":     "load_tris",
+    # Enhanced mid-range (PIC16F1xxx)
+    "LSLF":     "logical_shift_left_f",
+    "LSRF":     "logical_shift_right_f",
+    "ASRF":     "arithmetic_shift_right_f",
+    "BRW":      "branch_relative_with_w",
+    "MOVIW":    "move_indirect_from_fsr",
+    "MOVWI":    "move_w_indirect_to_fsr",
+    "MOVLP":    "move_literal_to_pclath",
+}
+
+# =============================================================================
 # Standard PIC18 mnemonic → Slovenian readable name
 # =============================================================================
 REVERSE_MAP_SI: dict[str, str] = {
@@ -218,6 +238,25 @@ REVERSE_MAP_SI: dict[str, str] = {
 }
 
 # =============================================================================
+# PIC16-only standard mnemonic → Slovenian readable name
+# =============================================================================
+REVERSE_MAP_PIC16_SI: dict[str, str] = {
+    "CLRW":     "pocisti_w",
+    "RLF":      "zavrti_levo_f",
+    "RRF":      "zavrti_desno_f",
+    "OPTION":   "nalozi_opcijo",
+    "TRIS":     "nalozi_tris",
+    # Enhanced mid-range (PIC16F1xxx)
+    "LSLF":     "logicni_pomik_levo_f",
+    "LSRF":     "logicni_pomik_desno_f",
+    "ASRF":     "aritmeticni_pomik_desno_f",
+    "BRW":      "vejitev_relativna_z_w",
+    "MOVIW":    "premakni_posredno_iz_fsr",
+    "MOVWI":    "premakni_w_posredno_v_fsr",
+    "MOVLP":    "premakni_konstanto_v_pclath",
+}
+
+# =============================================================================
 # Assembler directives / pseudo-ops that should NOT be translated
 # =============================================================================
 _DIRECTIVES = {
@@ -232,16 +271,17 @@ _DIRECTIVES = {
 
 
 def _build_reverse_regex() -> re.Pattern:
-    """Build a regex that matches any standard PIC18 mnemonic.
+    """Build a regex that matches any standard PIC16/PIC18 mnemonic.
 
     Table instructions (TBLRD*+, TBLWT+*, etc.) require special handling
     because they contain regex metacharacters (* and +).
     Longer mnemonics are tried first to avoid partial matches
     (e.g. TBLRD*+ before TBLRD*).
     """
-    # Collect all standard mnemonics from the English map (same keys in SI)
-    all_mnemonics = sorted(REVERSE_MAP_EN.keys(), key=len, reverse=True)
-    pattern = "|".join(re.escape(m) for m in all_mnemonics)
+    # Merge PIC18 + PIC16 mnemonics
+    all_mnemonics = set(REVERSE_MAP_EN.keys()) | set(REVERSE_MAP_PIC16_EN.keys())
+    sorted_mnemonics = sorted(all_mnemonics, key=len, reverse=True)
+    pattern = "|".join(re.escape(m) for m in sorted_mnemonics)
     return re.compile(
         r"(?<!\w)(" + pattern + r")(?!\w)",
         re.IGNORECASE,
@@ -281,13 +321,16 @@ def reverse_translate_line(line: str, rev_map: dict[str, str]) -> str:
 
 
 def reverse_translate(source: str, lang: str = "en") -> str:
-    """Translate a full standard PIC18 assembly source to readable assembly.
+    """Translate a full standard PIC16/PIC18 assembly source to readable assembly.
 
     Args:
         source: The standard assembly source code.
         lang:   "en" for English readable names, "si" for Slovenian.
     """
-    rev_map = REVERSE_MAP_SI if lang == "si" else REVERSE_MAP_EN
+    if lang == "si":
+        rev_map = {**REVERSE_MAP_SI, **REVERSE_MAP_PIC16_SI}
+    else:
+        rev_map = {**REVERSE_MAP_EN, **REVERSE_MAP_PIC16_EN}
     return "\n".join(
         reverse_translate_line(line, rev_map) for line in source.splitlines()
     )
@@ -296,7 +339,7 @@ def reverse_translate(source: str, lang: str = "en") -> str:
 # ── CLI ─────────────────────────────────────────────────────────────────
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Convert standard PIC18 assembly (.asm) to readable assembly (.rasm).",
+        description="Convert standard PIC16/PIC18 assembly (.asm) to readable assembly (.rasm).",
     )
     parser.add_argument(
         "input",
