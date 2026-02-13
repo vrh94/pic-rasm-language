@@ -65,6 +65,10 @@ PIC18_redable_assembly_code/
 │   ├── example_pic16.asm
 │   ├── example_pic16f1xxx.rasm        #   PIC16 enhanced mid-range example
 │   └── example_pic16f1xxx.asm
+├── ide/                               # PyQt5 IDE (MPLAB v8.92 style)
+│   └── pic_rasm_ide.py                #   IDE source code
+├── dist/                              # Compiled exe output
+│   └── PIC_RASM_IDE.exe               #   Standalone Windows IDE
 ├── pic18_translator.py                # Readable .rasm → standard .asm
 ├── pic18_reverse_translator.py        # Standard .asm → readable .rasm
 ├── pic18-readable-asm/                # VS Code extension for syntax highlighting
@@ -81,8 +85,13 @@ Instruction definitions are stored in **JSON files** under `instructions/` and l
 
 ## Requirements
 
+**Command-line tools:**
 - Python 3.10 or later
 - No external dependencies (standard library only: `json`, `re`, `argparse`, `pathlib`)
+
+**IDE (optional):**
+- PyQt5 (`pip install PyQt5`)
+- Or use the prebuilt `dist/PIC_RASM_IDE.exe` — no Python needed
 
 ---
 
@@ -126,6 +135,44 @@ Both translators are fully round-trip safe:
 python pic18_translator.py example.rasm -o temp.asm
 python pic18_reverse_translator.py temp.asm -o roundtrip.rasm
 # roundtrip.rasm will match example.rasm exactly
+```
+
+---
+
+## IDE (MPLAB v8.92 Style)
+
+A standalone PyQt5 IDE modelled after MPLAB IDE v8.92 is included.
+
+### Features
+
+- **Project tree** (left panel) — browse and open `.rasm` / `.asm` files
+- **Tabbed code editor** — syntax highlighting, line numbers, current-line highlight
+- **Output window** (bottom panel) — build output, errors
+- **Integrated Build** — press **F7** to translate `.rasm → .asm`
+- **Integrated Reverse Translate** — press **Shift+F7** to convert `.asm → .rasm`
+- **Find / Replace** (Ctrl+F), Go to Line (Ctrl+G)
+- Classic MPLAB grey/blue theme with Fusion style
+
+### Run from source
+
+```bash
+pip install PyQt5
+python ide/pic_rasm_ide.py
+```
+
+### Run the prebuilt exe
+
+The standalone `dist/PIC_RASM_IDE.exe` (≈36 MB) includes all dependencies — just double-click to launch. The exe bundles the translator scripts and instruction JSON files.
+
+### Rebuild the exe
+
+```bash
+pip install PyQt5 pyinstaller
+pyinstaller --noconfirm --onefile --windowed --name PIC_RASM_IDE \
+  --add-data "instructions;instructions" \
+  --add-data "pic18_translator.py;." \
+  --add-data "pic18_reverse_translator.py;." \
+  ide/pic_rasm_ide.py
 ```
 
 ---
