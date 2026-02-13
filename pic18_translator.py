@@ -33,8 +33,8 @@ from pathlib import Path
 _SCRIPT_DIR = Path(__file__).resolve().parent
 
 def _load_json(filename: str) -> dict:
-    """Load an instruction JSON file from the same directory as this script."""
-    path = _SCRIPT_DIR / filename
+    """Load an instruction JSON file from the instructions/ subdirectory."""
+    path = _SCRIPT_DIR / "instructions" / filename
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
