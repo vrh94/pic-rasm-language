@@ -1,12 +1,16 @@
 {
     "name": "pic18-readable-asm",
     "displayName": "PIC16/PIC18 Readable Assembly",
-    "description": "Syntax highlighting for PIC16/PIC18 readable assembly (.rasm) — English & Slovenian mnemonics",
-    "version": "1.0.0",
+    "description": "Syntax highlighting and autocomplete for PIC16/PIC18 readable assembly (.rasm) — English & Slovenian mnemonics",
+    "version": "1.1.0",
     "publisher": "local",
     "engines": {
         "vscode": "^1.60.0"
     },
+    "main": "./extension.js",
+    "activationEvents": [
+        "onLanguage:pic18rasm"
+    ],
     "categories": ["Programming Languages"],
     "contributes": {
         "languages": [
