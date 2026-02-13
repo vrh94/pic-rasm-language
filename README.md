@@ -14,8 +14,8 @@ BRA LOOP
 You write:
 
 ```
-move_literal_to_w 0x05
-move_w_to_f DELAY_COUNT, ACCESS
+wreg = 0x05
+DELAY_COUNT = wreg, ACCESS
 decrement_f_skip_if_zero DELAY_COUNT, F, ACCESS
 branch_always LOOP
 ```
@@ -23,8 +23,8 @@ branch_always LOOP
 **PIC16 example** — instead of:
 
 ```asm
-CLRW
-RLF PORTB, F
+MOVLW 0xFF
+MOVWF PORTB
 BTFSS STATUS, Z
 GOTO LOOP
 ```
@@ -32,16 +32,28 @@ GOTO LOOP
 You write:
 
 ```
-clear_w
-rotate_left_f PORTB, F
+wreg = 0xFF
+PORTB = wreg
 bit_test_f_skip_if_set STATUS, Z
 goto_address LOOP
 ```
 
-Or in **Slovenian**:
+**Register-to-register copy** — instead of:
+
+```asm
+MOVFF PORTA, PORTB
+```
+
+You write:
 
 ```
-premakni_konstanto_v_w 0x05
+PORTB = PORTA
+```
+
+Or in **Slovenian** (readable names still work for all instructions):
+
+```
+wreg = 0x05
 premakni_w_v_f STEVEC_ZAKASNITVE, ACCESS
 zmanjsaj_f_preskoci_ce_nic STEVEC_ZAKASNITVE, F, ACCESS
 vejitev_vedno ZANKA
@@ -65,6 +77,11 @@ PIC18_redable_assembly_code/
 │   ├── example_pic16.asm
 │   ├── example_pic16f1xxx.rasm        #   PIC16 enhanced mid-range example
 │   └── example_pic16f1xxx.asm
+├── compilers/                         # Project-local assembler executables
+│   ├── mpasm/                         #   Place mpasmx.exe / mpasm.exe here
+│   ├── xc8-pic-as/                    #   Place pic-as.exe here
+│   ├── gpasm/                         #   Place gpasm.exe here
+│   └── README.md
 ├── ide/                               # PyQt5 IDE (MPLAB v8.92 style)
 │   └── pic_rasm_ide.py                #   IDE source code
 ├── dist/                              # Compiled exe output
@@ -73,7 +90,9 @@ PIC18_redable_assembly_code/
 ├── pic18_reverse_translator.py        # Standard .asm → readable .rasm
 ├── pic18-readable-asm/                # VS Code extension for syntax highlighting
 │   ├── package.json
+│   ├── extension.js                   #   Inline autocomplete provider
 │   ├── language-configuration.json
+│   ├── instructions/                  #   Bundled JSON files for completions
 │   └── syntaxes/
 │       └── pic18rasm.tmLanguage.json
 └── README.md
@@ -299,6 +318,7 @@ The `pic18-readable-asm/` folder is a VS Code extension that provides syntax hig
 ### Features
 
 - All English and Slovenian readable mnemonics highlighted as **keywords** (PIC16 + PIC18)
+- **Assignment syntax** (`wreg = 0x04`, `PORTB = wreg`, `dest = src`) highlighted with operator colouring
 - Labels, comments (`;`), numbers (hex `0x`, binary `0b`, decimal), strings highlighted
 - Assembler directives (`ORG`, `EQU`, `CONFIG`, `#include`, etc.) highlighted
 - Bracket matching and auto-closing for `()`, `[]`, `<>`, `""`
@@ -333,8 +353,8 @@ All 75 PIC18 instructions (including 8 extended XINST) plus 19 PIC16-specific in
 | `INFSNZ` | `increment_f_skip_if_not_zero` | `povecaj_f_preskoci_ce_ni_nic` |
 | `IORWF` | `or_w_with_f` | `ali_w_z_f` |
 | `MOVF` | `move_f` | `premakni_f` |
-| `MOVFF` | `move_f_to_f` | `premakni_f_v_f` |
-| `MOVWF` | `move_w_to_f` | `premakni_w_v_f` |
+| `MOVFF` | `move_f_to_f` or **`<dest> = <src>`** | `premakni_f_v_f` |
+| `MOVWF` | `move_w_to_f` or **`<dest> = wreg`** | `premakni_w_v_f` |
 | `MULWF` | `multiply_w_with_f` | `pomnozi_w_z_f` |
 | `NEGF` | `negate_f` | `negiraj_f` |
 | `RLCF` | `rotate_left_f_through_carry` | `zavrti_levo_f_skozi_prenos` |
@@ -367,7 +387,7 @@ All 75 PIC18 instructions (including 8 extended XINST) plus 19 PIC16-specific in
 | `ANDLW` | `and_literal_with_w` | `in_konstanto_z_w` |
 | `IORLW` | `or_literal_with_w` | `ali_konstanto_z_w` |
 | `MOVLB` | `move_literal_to_bsr` | `premakni_konstanto_v_bsr` |
-| `MOVLW` | `move_literal_to_w` | `premakni_konstanto_v_w` |
+| `MOVLW` | `move_literal_to_w` or **`wreg = <value>`** | `premakni_konstanto_v_w` |
 | `MULLW` | `multiply_literal_with_w` | `pomnozi_konstanto_z_w` |
 | `SUBLW` | `subtract_w_from_literal` | `odstej_w_od_konstante` |
 | `XORLW` | `xor_literal_with_w` | `xali_konstanto_z_w` |
@@ -476,6 +496,21 @@ These instructions were added in the enhanced mid-range PIC16F1xxx family. Some 
 6. **English and Slovenian names can be mixed** in the same file.
 7. **PIC16 and PIC18 instructions can be mixed** — the translator handles both.
 
+### Assignment Syntax
+
+The `=` operator provides a natural way to write data-move instructions:
+
+| Readable syntax | Standard ASM | Description |
+|---|---|---|
+| `wreg = 0x04` | `MOVLW 0x04` | Load literal into W register |
+| `PORTB = wreg` | `MOVWF PORTB` | Store W into a file register |
+| `PORTB = wreg, ACCESS` | `MOVWF PORTB, ACCESS` | Store W with access/banked flag |
+| `PORTB = PORTA` | `MOVFF PORTA, PORTB` | Copy register to register (PIC18) |
+
+The old readable names (`move_literal_to_w`, `move_w_to_f`, `move_f_to_f`) still work — the `=` syntax is an additional, more natural notation. Both can be mixed freely.
+
+The **reverse translator** (.asm → .rasm) automatically produces `=` syntax for MOVLW, MOVWF, and MOVFF instructions.
+
 ### PIC18 Example
 
 ```
@@ -494,6 +529,11 @@ LOOP:
     bit_clear_f LATB, 0, ACCESS     ; LED off
     call_subroutine DELAY, 0
     branch_always LOOP              ; repeat
+
+DELAY:
+    wreg = 0x05                     ; load delay count
+    DELAY_COUNT = wreg, ACCESS      ; store to register
+    ...
 ```
 
 ### PIC16 Example
@@ -507,11 +547,11 @@ MAIN:
     clear_f TRISB                   ; PORTB = output
 
 LOOP:
-    move_literal_to_w 0xFF
-    move_w_to_f PORTB               ; all LEDs on
+    wreg = 0xFF                     ; all bits high
+    PORTB = wreg                    ; all LEDs on
     call_subroutine DELAY
     clear_w
-    move_w_to_f PORTB               ; all LEDs off
+    PORTB = wreg                    ; all LEDs off
     call_subroutine DELAY
     goto_address LOOP
 ```
