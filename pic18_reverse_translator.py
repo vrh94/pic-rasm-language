@@ -85,11 +85,70 @@ def _build_reverse_regex() -> re.Pattern:
 _STD_MNEMONIC_RE = _build_reverse_regex()
 
 
+# =============================================================================
+# Assignment-syntax generation for MOVLW / MOVWF / MOVFF
+# =============================================================================
+# Regex to match MOVLW, MOVWF, MOVFF as the instruction on a line.
+# Captures: indent, optional label, mnemonic, operands, optional comment.
+_MOV_ASSIGN_RE = re.compile(
+    r"^(?P<indent>\s*)"
+    r"(?:(?P<label>\w+):\s*)?"
+    r"(?P<mnemonic>MOVLW|MOVWF|MOVFF)\s+"
+    r"(?P<operands>[^;]+?)"
+    r"(?P<comment>\s*;.*)?"
+    r"$",
+    re.IGNORECASE,
+)
+
+
+def _reverse_assignment(line: str) -> str | None:
+    """Try to convert MOVLW/MOVWF/MOVFF to assignment syntax.
+
+    Returns None if the line does not match.
+
+    Conversion rules:
+      MOVLW <literal>        →  wreg = <literal>
+      MOVWF <dest>[, access] →  <dest> = wreg[, access]
+      MOVFF <src>, <dest>    →  <dest> = <src>
+    """
+    m = _MOV_ASSIGN_RE.match(line.rstrip("\n\r"))
+    if not m:
+        return None
+
+    indent = m.group("indent") or ""
+    label = m.group("label")
+    mnemonic = m.group("mnemonic").upper()
+    operands = m.group("operands").strip()
+    comment = (m.group("comment") or "").rstrip()
+
+    label_prefix = f"{label}: " if label else ""
+
+    if mnemonic == "MOVLW":
+        return f"{indent}{label_prefix}wreg = {operands}{comment}"
+
+    if mnemonic == "MOVWF":
+        # MOVWF <dest>[, ACCESS/BANKED]
+        parts = [p.strip() for p in operands.split(",", 1)]
+        dest = parts[0]
+        extra = f", {parts[1]}" if len(parts) > 1 else ""
+        return f"{indent}{label_prefix}{dest} = wreg{extra}{comment}"
+
+    if mnemonic == "MOVFF":
+        # MOVFF <src>, <dest>
+        parts = [p.strip() for p in operands.split(",", 1)]
+        if len(parts) == 2:
+            src, dest = parts
+            return f"{indent}{label_prefix}{dest} = {src}{comment}"
+
+    return None
+
+
 def reverse_translate_line(line: str, rev_map: dict[str, str]) -> str:
     """Translate one line of standard PIC18 assembly into readable assembly.
 
+    Assignment-syntax is used for MOVLW, MOVWF, and MOVFF.
+    Other mnemonics are replaced with readable names.
     Labels, comments, directives, and operands are preserved verbatim.
-    Only recognised PIC18 mnemonics are replaced with readable names.
     """
     stripped = line.rstrip("\n\r")
 
@@ -107,6 +166,12 @@ def reverse_translate_line(line: str, rev_map: dict[str, str]) -> str:
             return stripped
         break
 
+    # ── Try assignment syntax for MOVLW/MOVWF/MOVFF first ──
+    result = _reverse_assignment(stripped)
+    if result is not None:
+        return result
+
+    # ── Standard mnemonic replacement ──
     def _replace(m: re.Match) -> str:
         key = m.group(1).upper()
         return rev_map.get(key, m.group(0))

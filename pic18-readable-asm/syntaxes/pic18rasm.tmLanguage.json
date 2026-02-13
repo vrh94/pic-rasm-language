@@ -5,6 +5,7 @@
     "patterns": [
         { "include": "#comments" },
         { "include": "#strings" },
+        { "include": "#assignments" },
         { "include": "#labels" },
         { "include": "#numbers" },
         { "include": "#instructions_en" },
@@ -17,6 +18,29 @@
         { "include": "#builtins" }
     ],
     "repository": {
+        "assignments": {
+            "comment": "Assignment syntax: wreg = 0x04, PORTB = wreg, dest = src",
+            "patterns": [
+                {
+                    "comment": "wreg = literal  (MOVLW)",
+                    "match": "(?i)\\b(wreg|w)\\s*(=)\\s*([^;,]+)",
+                    "captures": {
+                        "1": { "name": "variable.language.wreg.pic18rasm" },
+                        "2": { "name": "keyword.operator.assignment.pic18rasm" },
+                        "3": { "name": "constant.numeric.pic18rasm" }
+                    }
+                },
+                {
+                    "comment": "dest = wreg  (MOVWF)  or  dest = src  (MOVFF)",
+                    "match": "(?i)\\b(\\w+)\\s*(=)\\s*(\\w+)",
+                    "captures": {
+                        "1": { "name": "variable.other.register.pic18rasm" },
+                        "2": { "name": "keyword.operator.assignment.pic18rasm" },
+                        "3": { "name": "variable.other.register.pic18rasm" }
+                    }
+                }
+            ]
+        },
         "comments": {
             "patterns": [
                 {

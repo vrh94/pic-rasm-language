@@ -18,7 +18,6 @@
 DELAY_COUNT1 EQU 0x20
 DELAY_COUNT2 EQU 0x21
 DELAY_COUNT3 EQU 0x22
-move_w_to_f reg_1
 
 ; ── Reset vector ────────────────────────────────────────────
     ORG 0x0000
@@ -43,7 +42,7 @@ MAIN:
 LOOP:
     ; Turn on LED on RB0 — set bit 0 of LATB
     BSF LATB, 0, ACCESS
-
+	
     ; Delay
     CALL DELAY, 0
 
@@ -100,9 +99,9 @@ TABLE_DEMO:
 
 ; ── Arithmetic demo ─────────────────────────────────────────
 ARITH_DEMO:
-    MOVLW 0x0A              ; W = 10
+    MOVLW 0x0A                         ; W = 10
     ADDLW 0x05               ; W = W + 5  = 15
-    MOVWF 0x30, ACCESS            ; store result
+    MOVWF 0x30, ACCESS                 ; store result
 
     MOVLW 0x03
     MULLW 0x04        ; PRODH:PRODL = 3 * 4 = 12

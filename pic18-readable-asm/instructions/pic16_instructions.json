@@ -1,0 +1,46 @@
+{
+    "en": {
+        "clear_w":                          "CLRW",
+        "rotate_left_f":                    "RLF",
+        "rotate_right_f":                   "RRF",
+        "option_load":                      "OPTION",
+        "load_tris":                        "TRIS",
+
+        "add_w_to_f_with_carry_16":         "ADDWFC",
+        "subtract_w_from_f_with_borrow_16": "SUBWFB",
+        "logical_shift_left_f":             "LSLF",
+        "logical_shift_right_f":            "LSRF",
+        "arithmetic_shift_right_f":         "ASRF",
+        "branch_relative":                  "BRA",
+        "branch_relative_with_w":           "BRW",
+        "call_subroutine_with_w":           "CALLW",
+        "add_literal_to_fsr_16":            "ADDFSR",
+        "move_indirect_from_fsr":           "MOVIW",
+        "move_w_indirect_to_fsr":           "MOVWI",
+        "move_literal_to_bsr_16":           "MOVLB",
+        "move_literal_to_pclath":           "MOVLP",
+        "software_reset_16":                "RESET"
+    },
+    "si": {
+        "pocisti_w":                         "CLRW",
+        "zavrti_levo_f":                     "RLF",
+        "zavrti_desno_f":                    "RRF",
+        "nalozi_opcijo":                     "OPTION",
+        "nalozi_tris":                       "TRIS",
+
+        "pristej_w_k_f_s_prenosom_16":       "ADDWFC",
+        "odstej_w_od_f_z_izposojo_16":       "SUBWFB",
+        "logicni_pomik_levo_f":              "LSLF",
+        "logicni_pomik_desno_f":             "LSRF",
+        "aritmeticni_pomik_desno_f":         "ASRF",
+        "vejitev_relativna":                 "BRA",
+        "vejitev_relativna_z_w":             "BRW",
+        "klici_podprogram_z_w_16":           "CALLW",
+        "pristej_konstanto_k_fsr_16":        "ADDFSR",
+        "premakni_posredno_iz_fsr":          "MOVIW",
+        "premakni_w_posredno_v_fsr":         "MOVWI",
+        "premakni_konstanto_v_bsr_16":       "MOVLB",
+        "premakni_konstanto_v_pclath":       "MOVLP",
+        "programska_ponastavitev_16":        "RESET"
+    }
+}

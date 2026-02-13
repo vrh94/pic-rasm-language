@@ -42,7 +42,7 @@ MAIN:
 LOOP:
     ; Turn on LED on RB0 — set bit 0 of LATB
     bit_set_f LATB, 0, ACCESS
-
+	
     ; Delay
     call_subroutine DELAY, 0
 
@@ -57,14 +57,14 @@ LOOP:
 
 ; ── Delay subroutine ────────────────────────────────────────
 DELAY:
-    move_literal_to_w 0x05
-    move_w_to_f DELAY_COUNT3, ACCESS
+    wreg = 0x05
+    DELAY_COUNT3 = wreg, ACCESS
 DELAY_OUTER:
-    move_literal_to_w 0xFF
-    move_w_to_f DELAY_COUNT2, ACCESS
+    wreg = 0xFF
+    DELAY_COUNT2 = wreg, ACCESS
 DELAY_MIDDLE:
-    move_literal_to_w 0xFF
-    move_w_to_f DELAY_COUNT1, ACCESS
+    wreg = 0xFF
+    DELAY_COUNT1 = wreg, ACCESS
 DELAY_INNER:
     decrement_f_skip_if_zero DELAY_COUNT1, F, ACCESS
     branch_always DELAY_INNER
@@ -80,12 +80,12 @@ DELAY_INNER:
 ; ── Another example: table read demo ────────────────────────
 TABLE_DEMO:
     ; Load table pointer with address of MY_TABLE
-    move_literal_to_w UPPER(MY_TABLE)
-    move_w_to_f TBLPTRU, ACCESS
-    move_literal_to_w HIGH(MY_TABLE)
-    move_w_to_f TBLPTRH, ACCESS
-    move_literal_to_w LOW(MY_TABLE)
-    move_w_to_f TBLPTRL, ACCESS
+    wreg = UPPER(MY_TABLE)
+    TBLPTRU = wreg, ACCESS
+    wreg = HIGH(MY_TABLE)
+    TBLPTRH = wreg, ACCESS
+    wreg = LOW(MY_TABLE)
+    TBLPTRL = wreg, ACCESS
 
     ; Read first byte from table
     table_read_post_increment
@@ -99,14 +99,14 @@ TABLE_DEMO:
 
 ; ── Arithmetic demo ─────────────────────────────────────────
 ARITH_DEMO:
-    move_literal_to_w 0x0A              ; W = 10
+    wreg = 0x0A                         ; W = 10
     add_literal_to_w 0x05               ; W = W + 5  = 15
-    move_w_to_f 0x30, ACCESS            ; store result
+    0x30 = wreg, ACCESS                 ; store result
 
-    move_literal_to_w 0x03
+    wreg = 0x03
     multiply_literal_with_w 0x04        ; PRODH:PRODL = 3 * 4 = 12
 
-    move_literal_to_w 0xFF
+    wreg = 0xFF
     complement_f 0x30, F, ACCESS        ; complement the value at 0x30
     swap_nibbles_f 0x30, F, ACCESS      ; swap nibbles
 

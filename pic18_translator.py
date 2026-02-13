@@ -69,18 +69,82 @@ _MNEMONIC_RE = re.compile(
     re.IGNORECASE,
 )
 
+# =============================================================================
+# Assignment-syntax support  (wreg = 0x04  →  MOVLW 0x04)
+#                            (PORTB = wreg →  MOVWF PORTB)
+#                            (a = x        →  MOVFF x, a)
+# =============================================================================
+# The regex matches:  <lhs> = <rhs>  with optional whitespace around '='.
+# <lhs> and <rhs> may be register/variable names, literals, ACCESS/BANKED, etc.
+_ASSIGNMENT_RE = re.compile(
+    r"^(?P<indent>\s*)"
+    r"(?:(?P<label>\w+):\s*)?"
+    r"(?P<lhs>[\w.]+)"
+    r"\s*=\s*"
+    r"(?P<rhs>[^;]+?)"
+    r"(?P<comment>\s*;.*)?"
+    r"$",
+)
+
+# Known names that refer to the W register (case-insensitive)
+_WREG_NAMES = {"wreg", "w"}
+
+
+def _translate_assignment(line: str) -> str | None:
+    """Try to translate an assignment-style line.  Returns None if not applicable.
+
+    Recognised forms:
+      wreg = <literal>           →  MOVLW <literal>
+      wreg = <literal>, <extra>  →  MOVLW <literal>   (extra preserved as comment note)
+      <dest> = wreg              →  MOVWF <dest>
+      <dest> = wreg, <access>    →  MOVWF <dest>, <access>
+      <dest> = <src>             →  MOVFF <src>, <dest>
+    """
+    m = _ASSIGNMENT_RE.match(line.rstrip("\n\r"))
+    if not m:
+        return None
+
+    indent = m.group("indent") or ""
+    label = m.group("label")
+    lhs = m.group("lhs").strip()
+    rhs = m.group("rhs").strip()
+    comment = (m.group("comment") or "").rstrip()
+
+    label_prefix = f"{label}: " if label else ""
+
+    lhs_lower = lhs.lower()
+    # Split rhs on comma to get value and optional access/banked flag
+    rhs_parts = [p.strip() for p in rhs.split(",", 1)]
+    rhs_val = rhs_parts[0]
+    rhs_extra = rhs_parts[1] if len(rhs_parts) > 1 else ""
+    rhs_val_lower = rhs_val.lower()
+
+    if lhs_lower in _WREG_NAMES:
+        # wreg = <literal>  →  MOVLW <literal>
+        operands = rhs_val
+        return f"{indent}{label_prefix}MOVLW {operands}{comment}"
+
+    if rhs_val_lower in _WREG_NAMES:
+        # <dest> = wreg  →  MOVWF <dest>[, access]
+        operands = lhs
+        if rhs_extra:
+            operands += f", {rhs_extra}"
+        return f"{indent}{label_prefix}MOVWF {operands}{comment}"
+
+    # <dest> = <src>  →  MOVFF <src>, <dest>
+    return f"{indent}{label_prefix}MOVFF {rhs_val}, {lhs}{comment}"
+
 
 def translate_line(line: str) -> str:
     """Translate one source line from readable assembly to standard PIC asm.
 
     Rules:
+    - Assignment syntax (wreg=0x04, PORTB=wreg, a=x) is translated first.
     - Lines starting with ';' are pure comments → pass through.
-    - Assembler directives (lines where the first token starts with '.' or '#',
-      or is a well-known directive like ORG, EQU, LIST, etc.) → pass through.
-    - Labels (tokens ending with ':') are preserved.
-    - Everything after ';' on a line is a comment → preserved.
-    - The readable mnemonic is replaced with the standard mnemonic;
-      operands are kept verbatim.
+    - Assembler directives are passed through.
+    - Labels ending with ':' are preserved.
+    - Comments after ';' are preserved.
+    - Readable mnemonics are replaced with standard mnemonics.
     """
     # Preserve leading whitespace
     stripped = line.rstrip("\n\r")
@@ -89,8 +153,12 @@ def translate_line(line: str) -> str:
     if stripped.strip() == "" or stripped.lstrip().startswith(";"):
         return stripped
 
-    # Replace ALL readable mnemonics found on the line (handles labels +
-    # instructions on the same line, etc.)
+    # ── Try assignment syntax first ──
+    result = _translate_assignment(stripped)
+    if result is not None:
+        return result
+
+    # ── Standard readable-mnemonic replacement ──
     def _replace(m: re.Match) -> str:
         return INSTRUCTION_MAP_ALL[m.group(1).lower()]
 

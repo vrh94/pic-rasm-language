@@ -43,8 +43,8 @@ MAIN:
     clear_f PORTB
 
     ; ── Shift operations demo ───────────────────────────────
-    move_literal_to_w 0b10110100
-    move_w_to_f SHIFT_VAL
+    wreg = 0b10110100
+    SHIFT_VAL = wreg
 
     logical_shift_left_f SHIFT_VAL, F   ; shift left (0 into LSB)
     logical_shift_right_f SHIFT_VAL, F  ; shift right (0 into MSB)
@@ -52,26 +52,26 @@ MAIN:
 
     ; ── Indirect addressing with FSR (enhanced) ─────────────
     ; Point FSR0 to TEMP
-    move_literal_to_w TEMP
-    move_w_to_f FSR0L
+    wreg = TEMP
+    FSR0L = wreg
     clear_f FSR0H
 
     ; Store value via indirect
-    move_literal_to_w 0x42
+    wreg = 0x42
     move_w_indirect_to_fsr FSR0         ; MOVWI — store W at [FSR0]
 
     ; Read back via indirect
     move_indirect_from_fsr FSR0         ; MOVIW — load [FSR0] into W
 
     ; ── Relative branch demo ────────────────────────────────
-    move_literal_to_w 0x00
+    wreg = 0x00
     branch_relative SKIP_OVER           ; BRA — relative branch
     no_operation                        ; this is skipped
 SKIP_OVER:
     no_operation
 
     ; ── Computed jump using BRW ─────────────────────────────
-    move_literal_to_w 0x02
+    wreg = 0x02
     branch_relative_with_w              ; BRW — jump PC + W
     no_operation                        ; W=0 lands here
     no_operation                        ; W=1 lands here

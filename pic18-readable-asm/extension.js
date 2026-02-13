@@ -55,22 +55,106 @@ function makeCompletionItem(entry) {
 }
 
 function activate(context) {
-    // Resolve instruction JSON paths relative to this extension folder
+    // Resolve instruction JSON paths — try multiple locations:
+    //   1. Bundled inside the extension folder  (always works)
+    //   2. Workspace root / instructions /      (dev-time convenience)
+    //   3. One level up from extension dir      (legacy layout)
     const extDir = context.extensionPath;
-    // JSON files live in the project root's instructions/ folder,
-    // which is one level up from the extension folder.
-    const instrDir = path.join(extDir, "..", "instructions");
 
-    const pic18Path = path.join(instrDir, "pic18_instructions.json");
-    const pic16Path = path.join(instrDir, "pic16_instructions.json");
+    function findInstructionsDir() {
+        // 1. Inside extension
+        const bundled = path.join(extDir, "instructions");
+        if (fs.existsSync(bundled)) return bundled;
+
+        // 2. Workspace folders
+        if (
+            vscode.workspace.workspaceFolders &&
+            vscode.workspace.workspaceFolders.length > 0
+        ) {
+            for (const wf of vscode.workspace.workspaceFolders) {
+                const candidate = path.join(wf.uri.fsPath, "instructions");
+                if (fs.existsSync(candidate)) return candidate;
+            }
+        }
+
+        // 3. One level up (extension lives inside project root)
+        const parentDir = path.join(extDir, "..", "instructions");
+        if (fs.existsSync(parentDir)) return parentDir;
+
+        return null;
+    }
+
+    const instrDir = findInstructionsDir();
+
+    if (!instrDir) {
+        console.warn(
+            "PIC Readable ASM: instructions/ directory not found. " +
+            "Autocomplete will be limited to directives only."
+        );
+    }
+
+    const pic18Path = instrDir
+        ? path.join(instrDir, "pic18_instructions.json")
+        : null;
+    const pic16Path = instrDir
+        ? path.join(instrDir, "pic16_instructions.json")
+        : null;
 
     const allEntries = [
-        ...loadInstructions(pic18Path, "PIC18"),
-        ...loadInstructions(pic16Path, "PIC16"),
+        ...(pic18Path ? loadInstructions(pic18Path, "PIC18") : []),
+        ...(pic16Path ? loadInstructions(pic16Path, "PIC16") : []),
     ];
 
     // Pre-build CompletionItem objects once
     const completionItems = allEntries.map(makeCompletionItem);
+
+    // ── Assignment-syntax completions (wreg = ..., dest = src) ──
+    const assignmentItems = [];
+
+    // wreg = <value>  (MOVLW)
+    const wregItem = new vscode.CompletionItem(
+        "wreg =",
+        vscode.CompletionItemKind.Snippet
+    );
+    wregItem.detail = "MOVLW  (assign literal to W register)";
+    wregItem.documentation = new vscode.MarkdownString(
+        "**wreg = <value>** → `MOVLW <value>`\n\n" +
+        "Loads a literal value into the W register.\n\n" +
+        "Example: `wreg = 0x04`"
+    );
+    wregItem.insertText = new vscode.SnippetString("wreg = ${1:0x00}");
+    wregItem.sortText = "00wreg";
+    assignmentItems.push(wregItem);
+
+    // <dest> = wreg  (MOVWF)
+    const movwfItem = new vscode.CompletionItem(
+        "<reg> = wreg",
+        vscode.CompletionItemKind.Snippet
+    );
+    movwfItem.detail = "MOVWF  (assign W to register)";
+    movwfItem.documentation = new vscode.MarkdownString(
+        "**<dest> = wreg** → `MOVWF <dest>`\n\n" +
+        "Moves W register to a file register.\n\n" +
+        "Example: `PORTB = wreg`"
+    );
+    movwfItem.insertText = new vscode.SnippetString("${1:REG} = wreg");
+    movwfItem.sortText = "00movwf";
+    assignmentItems.push(movwfItem);
+
+    // <dest> = <src>  (MOVFF)
+    const movffItem = new vscode.CompletionItem(
+        "<dest> = <src>",
+        vscode.CompletionItemKind.Snippet
+    );
+    movffItem.detail = "MOVFF  (assign register to register)";
+    movffItem.documentation = new vscode.MarkdownString(
+        "**<dest> = <src>** → `MOVFF <src>, <dest>`\n\n" +
+        "Copies one file register to another.\n\n" +
+        "Example: `PORTB = PORTA`"
+    );
+    movffItem.insertText = new vscode.SnippetString("${1:DEST} = ${2:SRC}");
+    movffItem.sortText = "00movff";
+    assignmentItems.push(movffItem);
 
     // Also build a set of common assembler directives
     const directives = [
@@ -105,16 +189,20 @@ function activate(context) {
                 }
 
                 // Return all items — VS Code filters by typed prefix automatically
-                return [...completionItems, ...directiveItems];
+                return [...assignmentItems, ...completionItems, ...directiveItems];
             },
         },
-        // Trigger on every letter and underscore for smooth inline suggestions
-        ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_#"
+        // Trigger on every letter, underscore, and = for assignment syntax
+        ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_#="
     );
 
     context.subscriptions.push(provider);
 
-    console.log("PIC16/PIC18 Readable Assembly — autocomplete activated");
+    console.log(
+        `PIC16/PIC18 Readable Assembly — autocomplete activated ` +
+        `(${allEntries.length} instructions, ${directives.length} directives` +
+        `${instrDir ? ", from " + instrDir : ", NO instruction JSONs found"})`
+    );
 }
 
 function deactivate() {}

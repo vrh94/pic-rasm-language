@@ -76,9 +76,9 @@ DELAY_INNER:
 
 ; ── Arithmetic demo ─────────────────────────────────────────
 ARITH_DEMO:
-    MOVLW 0x0A          ; W = 10
+    MOVLW 0x0A                     ; W = 10
     ADDLW 0x05           ; W = W + 5  = 15
-    MOVWF 0x30                ; store result
+    MOVWF 0x30                     ; store result
 
     ; Rotate operations (PIC16 style)
     RLF 0x30, F           ; rotate left through carry

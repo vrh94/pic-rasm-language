@@ -57,14 +57,14 @@ ZANKA:
 
 ; ── Podprogram za zakasnitev ────────────────────────────────
 ZAKASNITEV:
-    premakni_konstanto_v_w 0x05
-    premakni_w_v_f STEVEC_ZAKASNITVE3, ACCESS
+    wreg = 0x05
+    STEVEC_ZAKASNITVE3 = wreg, ACCESS
 ZUNANJA_ZANKA:
-    premakni_konstanto_v_w 0xFF
-    premakni_w_v_f STEVEC_ZAKASNITVE2, ACCESS
+    wreg = 0xFF
+    STEVEC_ZAKASNITVE2 = wreg, ACCESS
 SREDNJA_ZANKA:
-    premakni_konstanto_v_w 0xFF
-    premakni_w_v_f STEVEC_ZAKASNITVE1, ACCESS
+    wreg = 0xFF
+    STEVEC_ZAKASNITVE1 = wreg, ACCESS
 NOTRANJA_ZANKA:
     zmanjsaj_f_preskoci_ce_nic STEVEC_ZAKASNITVE1, F, ACCESS
     vejitev_vedno NOTRANJA_ZANKA
@@ -80,12 +80,12 @@ NOTRANJA_ZANKA:
 ; ── Primer branja tabele ────────────────────────────────────
 BRANJE_TABELE:
     ; Nalozi kazalec tabele z naslovom MOJA_TABELA
-    premakni_konstanto_v_w UPPER(MOJA_TABELA)
-    premakni_w_v_f TBLPTRU, ACCESS
-    premakni_konstanto_v_w HIGH(MOJA_TABELA)
-    premakni_w_v_f TBLPTRH, ACCESS
-    premakni_konstanto_v_w LOW(MOJA_TABELA)
-    premakni_w_v_f TBLPTRL, ACCESS
+    wreg = UPPER(MOJA_TABELA)
+    TBLPTRU = wreg, ACCESS
+    wreg = HIGH(MOJA_TABELA)
+    TBLPTRH = wreg, ACCESS
+    wreg = LOW(MOJA_TABELA)
+    TBLPTRL = wreg, ACCESS
 
     ; Preberi prvi bajt iz tabele
     beri_tabelo_povecaj_po
@@ -99,14 +99,14 @@ BRANJE_TABELE:
 
 ; ── Aritmeticni primer ──────────────────────────────────────
 ARITMETIKA:
-    premakni_konstanto_v_w 0x0A              ; W = 10
+    wreg = 0x0A                              ; W = 10
     pristej_konstanto_k_w 0x05               ; W = W + 5  = 15
-    premakni_w_v_f 0x30, ACCESS              ; shrani rezultat
+    0x30 = wreg, ACCESS                      ; shrani rezultat
 
-    premakni_konstanto_v_w 0x03
+    wreg = 0x03
     pomnozi_konstanto_z_w 0x04               ; PRODH:PRODL = 3 * 4 = 12
 
-    premakni_konstanto_v_w 0xFF
+    wreg = 0xFF
     komplementiraj_f 0x30, F, ACCESS         ; komplementiraj vrednost na 0x30
     zamenjaj_polbajta_f 0x30, F, ACCESS      ; zamenjaj polbajta
 

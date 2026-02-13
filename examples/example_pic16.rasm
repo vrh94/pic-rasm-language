@@ -54,14 +54,14 @@ LOOP:
 
 ; ── Delay subroutine ────────────────────────────────────────
 DELAY:
-    move_literal_to_w 0x05
-    move_w_to_f DELAY_COUNT3
+    wreg = 0x05
+    DELAY_COUNT3 = wreg
 DELAY_OUTER:
-    move_literal_to_w 0xFF
-    move_w_to_f DELAY_COUNT2
+    wreg = 0xFF
+    DELAY_COUNT2 = wreg
 DELAY_MIDDLE:
-    move_literal_to_w 0xFF
-    move_w_to_f DELAY_COUNT1
+    wreg = 0xFF
+    DELAY_COUNT1 = wreg
 DELAY_INNER:
     decrement_f_skip_if_zero DELAY_COUNT1, F
     goto_address DELAY_INNER
@@ -76,9 +76,9 @@ DELAY_INNER:
 
 ; ── Arithmetic demo ─────────────────────────────────────────
 ARITH_DEMO:
-    move_literal_to_w 0x0A          ; W = 10
+    wreg = 0x0A                     ; W = 10
     add_literal_to_w 0x05           ; W = W + 5  = 15
-    move_w_to_f 0x30                ; store result
+    0x30 = wreg                     ; store result
 
     ; Rotate operations (PIC16 style)
     rotate_left_f 0x30, F           ; rotate left through carry
