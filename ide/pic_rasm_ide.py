@@ -30,6 +30,7 @@ from PyQt5.QtCore import (
     QRegExp,
     QSettings,
     QSize,
+    QStringListModel,
     Qt,
     QTimer,
     pyqtSignal,
@@ -44,12 +45,14 @@ from PyQt5.QtGui import (
     QPixmap,
     QSyntaxHighlighter,
     QTextCharFormat,
+    QTextCursor,
     QTextDocument,
 )
 from PyQt5.QtWidgets import (
     QAction,
     QApplication,
     QComboBox,
+    QCompleter,
     QDockWidget,
     QFileDialog,
     QFileSystemModel,
@@ -112,6 +115,58 @@ def _load_instruction_names() -> list[str]:
 
 
 _ALL_INSTRUCTION_NAMES = _load_instruction_names()
+
+
+def _load_instruction_details() -> dict[str, str]:
+    """Return a dict mapping readable name → PIC mnemonic for tooltip info."""
+    details: dict[str, str] = {}
+    for fname in ("pic18_instructions.json", "pic16_instructions.json"):
+        path = _INSTRUCTIONS_DIR / fname
+        if path.exists():
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            for lang_map in data.values():
+                for readable, mnemonic in lang_map.items():
+                    details[readable] = mnemonic
+    return details
+
+
+_INSTRUCTION_DETAILS = _load_instruction_details()
+
+# Directives recognized by the completer
+_DIRECTIVES = [
+    "ORG", "EQU", "SET", "LIST", "CONFIG", "__CONFIG", "END",
+    "CBLOCK", "ENDC", "DB", "DW", "DT", "DE", "RES", "FILL",
+    "PROCESSOR", "RADIX", "BANKSEL", "PAGESEL", "CONSTANT",
+    "VARIABLE", "MACRO", "ENDM", "LOCAL", "EXITM", "INCLUDE",
+    "#include", "#define", "#ifdef", "#ifndef", "#endif", "#else",
+    "IF", "ELSE", "ENDIF", "WHILE", "ENDW",
+    "MESSG", "ERROR", "ERRORLEVEL", "TITLE", "SUBTITLE",
+    "PAGE", "SPACE", "NOLIST", "EXPAND", "NOEXPAND",
+    "__IDLOCS", "__BADRAM", "__MAXRAM",
+    "EXTERN", "GLOBAL", "CODE", "UDATA", "UDATA_SHR", "UDATA_ACS", "IDATA",
+]
+
+# Common PIC registers for the completer
+_REGISTERS = [
+    "WREG", "STATUS", "BSR", "PCL", "PCLATH", "PCLATU", "INTCON",
+    "PRODL", "PRODH", "FSR0L", "FSR0H", "FSR1L", "FSR1H",
+    "FSR2L", "FSR2H", "INDF0", "INDF1", "INDF2", "POSTINC0",
+    "POSTINC1", "POSTINC2", "PREINC0", "PREINC1", "PREINC2",
+    "POSTDEC0", "POSTDEC1", "POSTDEC2", "PLUSW0", "PLUSW1",
+    "PLUSW2", "TBLPTRL", "TBLPTRH", "TBLPTRU", "TABLAT",
+    "STKPTR", "TOSL", "TOSH", "TOSU",
+    "PORTA", "PORTB", "PORTC", "PORTD", "PORTE",
+    "LATA", "LATB", "LATC", "LATD", "LATE",
+    "TRISA", "TRISB", "TRISC", "TRISD", "TRISE",
+    "ACCESS", "BANKED",
+]
+
+# Full word list for the completer
+_ALL_COMPLETIONS = sorted(
+    set(_ALL_INSTRUCTION_NAMES + _DIRECTIVES + _REGISTERS),
+    key=str.lower,
+)
 
 # ---------------------------------------------------------------------------
 # MPLAB v8.92 colour palette
@@ -266,7 +321,7 @@ class LineNumberArea(QWidget):
 
 
 class CodeEditor(QPlainTextEdit):
-    """Plain text editor with line numbers, current-line highlight, and syntax highlighting."""
+    """Plain text editor with line numbers, current-line highlight, syntax highlighting, and inline autocomplete."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -289,6 +344,106 @@ class CodeEditor(QPlainTextEdit):
 
         self._update_line_number_width(0)
         self._highlight_current_line()
+
+        # ── inline autocomplete ──────────────────────────────────────────
+        self._completer: QCompleter | None = None
+        self._setup_completer()
+
+    # ── completer setup ──────────────────────────────────────────────────
+
+    def _setup_completer(self):
+        """Create and configure the inline autocomplete popup."""
+        self._completer = QCompleter(self)
+        model = QStringListModel(_ALL_COMPLETIONS, self._completer)
+        self._completer.setModel(model)
+        self._completer.setCompletionMode(QCompleter.PopupCompletion)
+        self._completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self._completer.setFilterMode(Qt.MatchContains)
+        self._completer.setWidget(self)
+        self._completer.activated.connect(self._insert_completion)
+
+        # Style the popup to match MPLAB theme
+        popup = self._completer.popup()
+        popup.setStyleSheet(
+            f"QListView {{"
+            f"  background: {_EDITOR_BG};"
+            f"  color: {_EDITOR_FG};"
+            f"  border: 1px solid #808080;"
+            f"  font-family: 'Courier New';"
+            f"  font-size: 10pt;"
+            f"  selection-background-color: #3399FF;"
+            f"  selection-color: #FFFFFF;"
+            f"}}"
+        )
+
+    def _insert_completion(self, completion: str):
+        """Insert the selected completion, replacing the current prefix."""
+        tc = self.textCursor()
+        prefix = self._text_under_cursor()
+        # Remove the already-typed prefix, then insert the full word
+        for _ in prefix:
+            tc.deletePreviousChar()
+        tc.insertText(completion)
+        self.setTextCursor(tc)
+
+    def _text_under_cursor(self) -> str:
+        """Return the word fragment (including '_' and '#') currently being typed."""
+        tc = self.textCursor()
+        tc.movePosition(tc.StartOfBlock, tc.KeepAnchor)
+        line_up_to_cursor = tc.selectedText()
+        # Extract the last token: letters, digits, underscores, and '#'
+        m = re.search(r'[#a-zA-Z_ščžćđŠČŽĆĐ][a-zA-Z0-9_ščžćđŠČŽĆĐ]*$', line_up_to_cursor)
+        return m.group(0) if m else ""
+
+    def keyPressEvent(self, event):
+        """Handle key presses — let completer intercept when visible, then trigger it."""
+        completer = self._completer
+
+        # If the completer popup is visible, let it handle Enter/Tab/Return/Escape
+        if completer and completer.popup().isVisible():
+            if event.key() in (Qt.Key_Enter, Qt.Key_Return, Qt.Key_Tab, Qt.Key_Escape,
+                                Qt.Key_Backtab):
+                event.ignore()
+                return
+
+        # Normal key processing
+        super().keyPressEvent(event)
+
+        # Don't show completer for modifier-only presses or shortcuts
+        if event.modifiers() & (Qt.ControlModifier | Qt.AltModifier):
+            if completer and completer.popup().isVisible():
+                completer.popup().hide()
+            return
+
+        prefix = self._text_under_cursor()
+
+        # Need at least 2 chars to trigger the popup
+        if len(prefix) < 2:
+            if completer and completer.popup().isVisible():
+                completer.popup().hide()
+            return
+
+        # Don't suggest inside comments (after ';')
+        tc = self.textCursor()
+        tc.movePosition(tc.StartOfBlock, tc.KeepAnchor)
+        line_text = tc.selectedText()
+        semi_pos = line_text.find(";")
+        if semi_pos != -1 and len(line_text) - len(prefix) >= semi_pos:
+            if completer and completer.popup().isVisible():
+                completer.popup().hide()
+            return
+
+        # Update completer prefix and show popup
+        completer.setCompletionPrefix(prefix)
+
+        # Position the popup under the cursor
+        cr = self.cursorRect()
+        cr.setWidth(
+            completer.popup().sizeHintForColumn(0)
+            + completer.popup().verticalScrollBar().sizeHint().width()
+            + 20
+        )
+        completer.complete(cr)
 
     def attach_highlighter(self):
         if self._highlighter is None:
