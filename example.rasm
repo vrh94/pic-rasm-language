@@ -1,0 +1,128 @@
+; ============================================================
+; PIC18 Readable Assembly Example — LED Blink
+; ============================================================
+; This .rasm file demonstrates the readable PIC18 syntax.
+; Run it through pic18_translator.py to get standard PIC18 asm.
+; ============================================================
+
+    LIST P=18F4550
+    #include <p18f4550.inc>
+
+; ── Configuration bits ──────────────────────────────────────
+    CONFIG FOSC = HS
+    CONFIG WDT  = OFF
+    CONFIG LVP  = OFF
+    CONFIG PBADEN = OFF
+
+; ── Variables ───────────────────────────────────────────────
+DELAY_COUNT1 EQU 0x20
+DELAY_COUNT2 EQU 0x21
+DELAY_COUNT3 EQU 0x22
+
+; ── Reset vector ────────────────────────────────────────────
+    ORG 0x0000
+    goto_address MAIN
+
+; ── Interrupt vector (unused) ───────────────────────────────
+    ORG 0x0008
+    return_from_interrupt 0
+
+; ── Main Program ────────────────────────────────────────────
+    ORG 0x0020
+MAIN:
+    ; Select bank 0
+    move_literal_to_bsr 0
+
+    ; Configure PORTB as all outputs
+    clear_f TRISB, ACCESS
+
+    ; Clear PORTB (all LEDs off)
+    clear_f LATB, ACCESS
+
+LOOP:
+    ; Turn on LED on RB0 — set bit 0 of LATB
+    bit_set_f LATB, 0, ACCESS
+
+    ; Delay
+    call_subroutine DELAY, 0
+
+    ; Turn off LED on RB0 — clear bit 0 of LATB
+    bit_clear_f LATB, 0, ACCESS
+
+    ; Delay again
+    call_subroutine DELAY, 0
+
+    ; Repeat forever
+    branch_always LOOP
+
+; ── Delay subroutine ────────────────────────────────────────
+DELAY:
+    move_literal_to_w 0x05
+    move_w_to_f DELAY_COUNT3, ACCESS
+DELAY_OUTER:
+    move_literal_to_w 0xFF
+    move_w_to_f DELAY_COUNT2, ACCESS
+DELAY_MIDDLE:
+    move_literal_to_w 0xFF
+    move_w_to_f DELAY_COUNT1, ACCESS
+DELAY_INNER:
+    decrement_f_skip_if_zero DELAY_COUNT1, F, ACCESS
+    branch_always DELAY_INNER
+
+    decrement_f_skip_if_zero DELAY_COUNT2, F, ACCESS
+    branch_always DELAY_MIDDLE
+
+    decrement_f_skip_if_zero DELAY_COUNT3, F, ACCESS
+    branch_always DELAY_OUTER
+
+    return_from_subroutine 0
+
+; ── Another example: table read demo ────────────────────────
+TABLE_DEMO:
+    ; Load table pointer with address of MY_TABLE
+    move_literal_to_w UPPER(MY_TABLE)
+    move_w_to_f TBLPTRU, ACCESS
+    move_literal_to_w HIGH(MY_TABLE)
+    move_w_to_f TBLPTRH, ACCESS
+    move_literal_to_w LOW(MY_TABLE)
+    move_w_to_f TBLPTRL, ACCESS
+
+    ; Read first byte from table
+    table_read_post_increment
+    move_f TABLAT, W, ACCESS     ; result now in W
+
+    ; Read second byte
+    table_read_post_increment
+    move_f TABLAT, W, ACCESS
+
+    return_from_subroutine 0
+
+; ── Arithmetic demo ─────────────────────────────────────────
+ARITH_DEMO:
+    move_literal_to_w 0x0A              ; W = 10
+    add_literal_to_w 0x05               ; W = W + 5  = 15
+    move_w_to_f 0x30, ACCESS            ; store result
+
+    move_literal_to_w 0x03
+    multiply_literal_with_w 0x04        ; PRODH:PRODL = 3 * 4 = 12
+
+    move_literal_to_w 0xFF
+    complement_f 0x30, F, ACCESS        ; complement the value at 0x30
+    swap_nibbles_f 0x30, F, ACCESS      ; swap nibbles
+
+    ; Bit manipulation
+    bit_set_f 0x30, 7, ACCESS           ; set bit 7
+    bit_toggle_f 0x30, 3, ACCESS        ; toggle bit 3
+    bit_test_f_skip_if_set 0x30, 7, ACCESS
+    branch_always SKIP_TARGET
+
+SKIP_TARGET:
+    no_operation
+    return_from_subroutine 0
+
+; ── Data in program memory ──────────────────────────────────
+    ORG 0x0800
+MY_TABLE:
+    DB 0x48, 0x65, 0x6C, 0x6C, 0x6F    ; "Hello"
+
+    END

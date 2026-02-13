@@ -1,0 +1,28 @@
+{
+    "name": "pic18-readable-asm",
+    "displayName": "PIC18 Readable Assembly",
+    "description": "Syntax highlighting for PIC18 readable assembly (.rasm) — English & Slovenian mnemonics",
+    "version": "1.0.0",
+    "publisher": "local",
+    "engines": {
+        "vscode": "^1.60.0"
+    },
+    "categories": ["Programming Languages"],
+    "contributes": {
+        "languages": [
+            {
+                "id": "pic18rasm",
+                "aliases": ["PIC18 Readable Assembly", "rasm"],
+                "extensions": [".rasm"],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "pic18rasm",
+                "scopeName": "source.pic18rasm",
+                "path": "./syntaxes/pic18rasm.tmLanguage.json"
+            }
+        ]
+    }
+}

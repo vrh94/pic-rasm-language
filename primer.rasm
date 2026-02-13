@@ -1,0 +1,128 @@
+; ============================================================
+; PIC18 Berljiv zbirnik — Utripanje LED
+; ============================================================
+; Ta .rasm datoteka prikazuje slovensko berljivo sintakso.
+; Pozeni pic18_translator.py za prevod v standardni PIC18 asm.
+; ============================================================
+
+    LIST P=18F4550
+    #include <p18f4550.inc>
+
+; ── Konfiguracijski biti ────────────────────────────────────
+    CONFIG FOSC = HS
+    CONFIG WDT  = OFF
+    CONFIG LVP  = OFF
+    CONFIG PBADEN = OFF
+
+; ── Spremenljivke ───────────────────────────────────────────
+STEVEC_ZAKASNITVE1 EQU 0x20
+STEVEC_ZAKASNITVE2 EQU 0x21
+STEVEC_ZAKASNITVE3 EQU 0x22
+
+; ── Ponastavitveni vektor ───────────────────────────────────
+    ORG 0x0000
+    pojdi_na_naslov GLAVNI
+
+; ── Prekinitveni vektor (neuporabljen) ──────────────────────
+    ORG 0x0008
+    vrni_se_iz_prekinitve 0
+
+; ── Glavni program ──────────────────────────────────────────
+    ORG 0x0020
+GLAVNI:
+    ; Izberi banko 0
+    premakni_konstanto_v_bsr 0
+
+    ; Nastavi PORTB kot izhode
+    pocisti_f TRISB, ACCESS
+
+    ; Pocisti PORTB (vse LED ugasnjene)
+    pocisti_f LATB, ACCESS
+
+ZANKA:
+    ; Prizgi LED na RB0 — nastavi bit 0 registra LATB
+    bit_nastavi_f LATB, 0, ACCESS
+
+    ; Zakasnitev
+    klici_podprogram ZAKASNITEV, 0
+
+    ; Ugasni LED na RB0 — pocisti bit 0 registra LATB
+    bit_pocisti_f LATB, 0, ACCESS
+
+    ; Ponovno zakasnitev
+    klici_podprogram ZAKASNITEV, 0
+
+    ; Ponovi v nedogled
+    vejitev_vedno ZANKA
+
+; ── Podprogram za zakasnitev ────────────────────────────────
+ZAKASNITEV:
+    premakni_konstanto_v_w 0x05
+    premakni_w_v_f STEVEC_ZAKASNITVE3, ACCESS
+ZUNANJA_ZANKA:
+    premakni_konstanto_v_w 0xFF
+    premakni_w_v_f STEVEC_ZAKASNITVE2, ACCESS
+SREDNJA_ZANKA:
+    premakni_konstanto_v_w 0xFF
+    premakni_w_v_f STEVEC_ZAKASNITVE1, ACCESS
+NOTRANJA_ZANKA:
+    zmanjsaj_f_preskoci_ce_nic STEVEC_ZAKASNITVE1, F, ACCESS
+    vejitev_vedno NOTRANJA_ZANKA
+
+    zmanjsaj_f_preskoci_ce_nic STEVEC_ZAKASNITVE2, F, ACCESS
+    vejitev_vedno SREDNJA_ZANKA
+
+    zmanjsaj_f_preskoci_ce_nic STEVEC_ZAKASNITVE3, F, ACCESS
+    vejitev_vedno ZUNANJA_ZANKA
+
+    vrni_se_iz_podprograma 0
+
+; ── Primer branja tabele ────────────────────────────────────
+BRANJE_TABELE:
+    ; Nalozi kazalec tabele z naslovom MOJA_TABELA
+    premakni_konstanto_v_w UPPER(MOJA_TABELA)
+    premakni_w_v_f TBLPTRU, ACCESS
+    premakni_konstanto_v_w HIGH(MOJA_TABELA)
+    premakni_w_v_f TBLPTRH, ACCESS
+    premakni_konstanto_v_w LOW(MOJA_TABELA)
+    premakni_w_v_f TBLPTRL, ACCESS
+
+    ; Preberi prvi bajt iz tabele
+    beri_tabelo_povecaj_po
+    premakni_f TABLAT, W, ACCESS     ; rezultat je zdaj v W
+
+    ; Preberi drugi bajt
+    beri_tabelo_povecaj_po
+    premakni_f TABLAT, W, ACCESS
+
+    vrni_se_iz_podprograma 0
+
+; ── Aritmeticni primer ──────────────────────────────────────
+ARITMETIKA:
+    premakni_konstanto_v_w 0x0A              ; W = 10
+    pristej_konstanto_k_w 0x05               ; W = W + 5  = 15
+    premakni_w_v_f 0x30, ACCESS              ; shrani rezultat
+
+    premakni_konstanto_v_w 0x03
+    pomnozi_konstanto_z_w 0x04               ; PRODH:PRODL = 3 * 4 = 12
+
+    premakni_konstanto_v_w 0xFF
+    komplementiraj_f 0x30, F, ACCESS         ; komplementiraj vrednost na 0x30
+    zamenjaj_polbajta_f 0x30, F, ACCESS      ; zamenjaj polbajta
+
+    ; Bitne operacije
+    bit_nastavi_f 0x30, 7, ACCESS            ; nastavi bit 7
+    bit_preklopi_f 0x30, 3, ACCESS           ; preklopi bit 3
+    bit_testiraj_f_preskoci_ce_nastavljen 0x30, 7, ACCESS
+    vejitev_vedno CILJ_PRESKOKA
+
+CILJ_PRESKOKA:
+    brez_operacije
+    vrni_se_iz_podprograma 0
+
+; ── Podatki v programskem pomnilniku ────────────────────────
+    ORG 0x0800
+MOJA_TABELA:
+    DB 0x50, 0x6F, 0x7A, 0x64, 0x72, 0x61, 0x76    ; "Pozdrav"
+
+    END

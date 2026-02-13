@@ -1,0 +1,212 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "PIC18 Readable Assembly",
+    "scopeName": "source.pic18rasm",
+    "patterns": [
+        { "include": "#comments" },
+        { "include": "#strings" },
+        { "include": "#labels" },
+        { "include": "#numbers" },
+        { "include": "#instructions_en" },
+        { "include": "#instructions_si" },
+        { "include": "#directives" },
+        { "include": "#registers" },
+        { "include": "#operators" },
+        { "include": "#builtins" }
+    ],
+    "repository": {
+        "comments": {
+            "patterns": [
+                {
+                    "name": "comment.line.semicolon.pic18rasm",
+                    "match": ";.*$"
+                }
+            ]
+        },
+        "strings": {
+            "patterns": [
+                {
+                    "name": "string.quoted.double.pic18rasm",
+                    "begin": "\"",
+                    "end": "\"",
+                    "patterns": [
+                        { "name": "constant.character.escape.pic18rasm", "match": "\\\\." }
+                    ]
+                },
+                {
+                    "name": "string.quoted.single.pic18rasm",
+                    "begin": "'",
+                    "end": "'",
+                    "patterns": [
+                        { "name": "constant.character.escape.pic18rasm", "match": "\\\\." }
+                    ]
+                }
+            ]
+        },
+        "labels": {
+            "patterns": [
+                {
+                    "name": "entity.name.function.label.pic18rasm",
+                    "match": "^[A-Za-z_][A-Za-z0-9_]*:"
+                },
+                {
+                    "name": "entity.name.function.label.pic18rasm",
+                    "match": "^[A-Za-z_][A-Za-z0-9_]*(?=\\s)"
+                }
+            ]
+        },
+        "numbers": {
+            "patterns": [
+                {
+                    "name": "constant.numeric.hex.pic18rasm",
+                    "match": "\\b0[xX][0-9A-Fa-f]+\\b"
+                },
+                {
+                    "name": "constant.numeric.hex.pic18rasm",
+                    "match": "\\b[0-9][0-9A-Fa-f]*[hH]\\b"
+                },
+                {
+                    "name": "constant.numeric.binary.pic18rasm",
+                    "match": "\\b0[bB][01]+\\b"
+                },
+                {
+                    "name": "constant.numeric.binary.pic18rasm",
+                    "match": "\\b[bB]'[01]+'\\b"
+                },
+                {
+                    "name": "constant.numeric.octal.pic18rasm",
+                    "match": "\\b[oO]'[0-7]+'\\b"
+                },
+                {
+                    "name": "constant.numeric.decimal.pic18rasm",
+                    "match": "\\b[dD]'[0-9]+'\\b"
+                },
+                {
+                    "name": "constant.numeric.decimal.pic18rasm",
+                    "match": "\\b\\.[0-9]+\\b"
+                },
+                {
+                    "name": "constant.numeric.decimal.pic18rasm",
+                    "match": "\\b[0-9]+\\b"
+                }
+            ]
+        },
+        "instructions_en": {
+            "patterns": [
+                {
+                    "comment": "Byte-oriented file register operations (EN)",
+                    "name": "keyword.mnemonic.byte.pic18rasm",
+                    "match": "(?i)\\b(add_w_to_f_with_carry|add_w_to_f|and_w_with_f|clear_f|complement_f|compare_f_skip_if_equal|compare_f_skip_if_greater|compare_f_skip_if_less|decrement_f_skip_if_not_zero|decrement_f_skip_if_zero|decrement_f|increment_f_skip_if_not_zero|increment_f_skip_if_zero|increment_f|or_w_with_f|move_f_to_f|move_w_to_f|move_f|multiply_w_with_f|negate_f|rotate_left_f_through_carry|rotate_left_f_no_carry|rotate_right_f_through_carry|rotate_right_f_no_carry|set_f|subtract_f_from_w_with_borrow|subtract_w_from_f_with_borrow|subtract_w_from_f|swap_nibbles_f|test_f_skip_if_zero|xor_w_with_f)\\b"
+                },
+                {
+                    "comment": "Bit-oriented file register operations (EN)",
+                    "name": "keyword.mnemonic.bit.pic18rasm",
+                    "match": "(?i)\\b(bit_clear_f|bit_set_f|bit_test_f_skip_if_clear|bit_test_f_skip_if_set|bit_toggle_f)\\b"
+                },
+                {
+                    "comment": "Literal operations (EN)",
+                    "name": "keyword.mnemonic.literal.pic18rasm",
+                    "match": "(?i)\\b(add_literal_to_w|and_literal_with_w|or_literal_with_w|move_literal_to_bsr|move_literal_to_w|multiply_literal_with_w|subtract_w_from_literal|xor_literal_with_w)\\b"
+                },
+                {
+                    "comment": "Control / branch operations (EN)",
+                    "name": "keyword.control.pic18rasm",
+                    "match": "(?i)\\b(branch_if_carry|branch_if_negative|branch_if_not_carry|branch_if_not_negative|branch_if_not_overflow|branch_if_not_zero|branch_if_overflow|branch_always|branch_if_zero|call_subroutine_using_w|call_subroutine|clear_watchdog_timer|decimal_adjust_w|goto_address|no_operation|pop_return_stack|push_return_stack|relative_call|software_reset|return_from_interrupt|return_with_literal_in_w|return_from_subroutine|enter_sleep_mode)\\b"
+                },
+                {
+                    "comment": "Table read/write operations (EN)",
+                    "name": "keyword.mnemonic.table.pic18rasm",
+                    "match": "(?i)\\b(table_read_post_increment|table_read_post_decrement|table_read_pre_increment|table_read|table_write_post_increment|table_write_post_decrement|table_write_pre_increment|table_write)\\b"
+                },
+                {
+                    "comment": "Extended instruction set (EN)",
+                    "name": "keyword.mnemonic.extended.pic18rasm",
+                    "match": "(?i)\\b(add_literal_to_fsr2_and_return|add_literal_to_fsr|call_subroutine_using_w|move_indexed_to_indexed|move_indexed_to_f|push_literal|subtract_literal_from_fsr2_and_return|subtract_literal_from_fsr)\\b"
+                }
+            ]
+        },
+        "instructions_si": {
+            "patterns": [
+                {
+                    "comment": "Bajtno usmerjene operacije (SI)",
+                    "name": "keyword.mnemonic.byte.pic18rasm",
+                    "match": "(?i)\\b(pristej_w_k_f_s_prenosom|pristej_w_k_f|in_w_z_f|pocisti_f|komplementiraj_f|primerjaj_f_preskoci_ce_enako|primerjaj_f_preskoci_ce_vecje|primerjaj_f_preskoci_ce_manjse|zmanjsaj_f_preskoci_ce_ni_nic|zmanjsaj_f_preskoci_ce_nic|zmanjsaj_f|povecaj_f_preskoci_ce_ni_nic|povecaj_f_preskoci_ce_nic|povecaj_f|ali_w_z_f|premakni_f_v_f|premakni_w_v_f|premakni_f|pomnozi_w_z_f|negiraj_f|zavrti_levo_f_skozi_prenos|zavrti_levo_f_brez_prenosa|zavrti_desno_f_skozi_prenos|zavrti_desno_f_brez_prenosa|nastavi_f|odstej_f_od_w_z_izposojo|odstej_w_od_f_z_izposojo|odstej_w_od_f|zamenjaj_polbajta_f|testiraj_f_preskoci_ce_nic|xali_w_z_f)\\b"
+                },
+                {
+                    "comment": "Bitno usmerjene operacije (SI)",
+                    "name": "keyword.mnemonic.bit.pic18rasm",
+                    "match": "(?i)\\b(bit_pocisti_f|bit_nastavi_f|bit_testiraj_f_preskoci_ce_pociscen|bit_testiraj_f_preskoci_ce_nastavljen|bit_preklopi_f)\\b"
+                },
+                {
+                    "comment": "Operacije s konstantami (SI)",
+                    "name": "keyword.mnemonic.literal.pic18rasm",
+                    "match": "(?i)\\b(pristej_konstanto_k_w|in_konstanto_z_w|ali_konstanto_z_w|premakni_konstanto_v_bsr|premakni_konstanto_v_w|pomnozi_konstanto_z_w|odstej_w_od_konstante|xali_konstanto_z_w)\\b"
+                },
+                {
+                    "comment": "Krmilne / vejne operacije (SI)",
+                    "name": "keyword.control.pic18rasm",
+                    "match": "(?i)\\b(vejitev_ce_prenos|vejitev_ce_negativno|vejitev_ce_ni_prenosa|vejitev_ce_ni_negativno|vejitev_ce_ni_prekoracitve|vejitev_ce_ni_nic|vejitev_ce_prekoracitev|vejitev_vedno|vejitev_ce_nic|klici_podprogram_z_w|klici_podprogram|pocisti_casovnik_psa|decimalno_prilagodi_w|pojdi_na_naslov|brez_operacije|odvzemi_iz_sklada|potisni_na_sklad|relativni_klic|programska_ponastavitev|vrni_se_iz_prekinitve|vrni_se_s_konstanto_v_w|vrni_se_iz_podprograma|vstopi_v_spanje)\\b"
+                },
+                {
+                    "comment": "Operacije branja / pisanja tabele (SI)",
+                    "name": "keyword.mnemonic.table.pic18rasm",
+                    "match": "(?i)\\b(beri_tabelo_povecaj_po|beri_tabelo_zmanjsaj_po|beri_tabelo_povecaj_pred|beri_tabelo|pisi_tabelo_povecaj_po|pisi_tabelo_zmanjsaj_po|pisi_tabelo_povecaj_pred|pisi_tabelo)\\b"
+                },
+                {
+                    "comment": "Razsirjeni nabor ukazov (SI)",
+                    "name": "keyword.mnemonic.extended.pic18rasm",
+                    "match": "(?i)\\b(pristej_konstanto_k_fsr2_in_vrni|pristej_konstanto_k_fsr|klici_podprogram_z_w|premakni_indeksirano_v_indeksirano|premakni_indeksirano_v_f|potisni_konstanto|odstej_konstanto_od_fsr2_in_vrni|odstej_konstanto_od_fsr)\\b"
+                }
+            ]
+        },
+        "directives": {
+            "patterns": [
+                {
+                    "name": "keyword.directive.pic18rasm",
+                    "match": "(?i)^\\s*(#include|#define|#ifdef|#ifndef|#endif|#else|#undefine)\\b"
+                },
+                {
+                    "name": "keyword.directive.pic18rasm",
+                    "match": "(?i)\\b(LIST|NOLIST|PROCESSOR|RADIX|SET|VARIABLE|CONSTANT|CBLOCK|ENDC|EXTERN|GLOBAL|BANKSEL|PAGESEL|ORG|END|EQU|CONFIG|__CONFIG|DB|DW|DT|DE|DATA|RES|FILL|ACCESS_OVR|BANKISEL|CODE|CODE_PACK|IDATA|IDATA_ACS|UDATA|UDATA_ACS|UDATA_OVR|UDATA_SHR)\\b"
+                },
+                {
+                    "name": "keyword.directive.pic18rasm",
+                    "match": "(?i)\\b(IF|ELSE|ENDIF|IFDEF|IFNDEF|WHILE|ENDW|INCLUDE|MACRO|ENDM|LOCAL|EXITM|ERROR|MESSG|SUBTITLE|TITLE|PAGE|SPACE)\\b"
+                },
+                {
+                    "name": "support.function.builtin.pic18rasm",
+                    "match": "(?i)\\b(UPPER|HIGH|LOW|BANKED|ACCESS)\\b"
+                }
+            ]
+        },
+        "registers": {
+            "patterns": [
+                {
+                    "name": "variable.language.register.pic18rasm",
+                    "match": "(?i)\\b(WREG|STATUS|BSR|PCL|PCLATH|PCLATU|INTCON|INTCON2|INTCON3|PIR[1-5]|PIE[1-5]|IPR[1-5]|RCON|OSCCON|T[0-3]CON|TMR[0-3][HL]?|PORTA|PORTB|PORTC|PORTD|PORTE|TRISA|TRISB|TRISC|TRISD|TRISE|LATA|LATB|LATC|LATD|LATE|ADCON[0-2]|ADRES[HL]|CCPR[1-2][HL]|CCP[1-2]CON|SSPBUF|SSPADD|SSPSTAT|SSPCON[1-2]|TXREG|RCREG|TXSTA|RCSTA|BAUDCON|SPBRG[HL]?|TBLPTR[UHL]|TABLAT|PRODH|PRODL|FSR[0-2][HL]|POSTINC[0-2]|POSTDEC[0-2]|PREINC[0-2]|PLUSW[0-2]|INDF[0-2]|STKPTR|TOSU|TOSH|TOSL)\\b"
+                },
+                {
+                    "comment": "W and F destination specifiers",
+                    "name": "variable.language.register.pic18rasm",
+                    "match": "(?<=,)\\s*[WwFf]\\b"
+                }
+            ]
+        },
+        "operators": {
+            "patterns": [
+                {
+                    "name": "keyword.operator.pic18rasm",
+                    "match": "(?i)\\b(UPPER|HIGH|LOW)(?=\\s*\\()"
+                }
+            ]
+        },
+        "builtins": {
+            "patterns": [
+                {
+                    "name": "constant.language.pic18rasm",
+                    "match": "(?i)\\b(ACCESS|BANKED|W|F)\\b"
+                }
+            ]
+        }
+    }
+}
